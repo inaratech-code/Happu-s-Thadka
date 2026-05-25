@@ -34,8 +34,7 @@ import { NAV_ICON_STROKE, NAV_MOTION, SIDEBAR_WIDTH } from "@/lib/sidebar-config
 import { useAuth } from "@/components/auth-provider";
 import { useStore } from "@/lib/store";
 import { todaySales } from "@/lib/store-utils";
-import { useOnlineStatus } from "@/hooks/use-online-status";
-import { SidebarStatusWidget } from "@/components/sidebar/status-widget";
+import { SidebarTodaySalesStrip } from "@/components/sidebar/today-sales-strip";
 import type { NavItem } from "@/lib/types";
 
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -213,7 +212,6 @@ export function Sidebar({ mobile, onNavigate }: { mobile?: boolean; onNavigate?:
   const isActive = useNavActive();
   const { session } = useAuth();
   const { state } = useStore();
-  const online = useOnlineStatus();
   const navItems = filterNavItems(NAV_ITEMS, session);
   const revenue = todaySales(state.transactions);
   const location = state.settings.location?.split(",")[0] ?? "Restaurant";
@@ -324,11 +322,7 @@ export function Sidebar({ mobile, onNavigate }: { mobile?: boolean; onNavigate?:
       </nav>
 
       <div className="relative z-[1] shrink-0 border-t border-[var(--sidebar-divider)] px-2.5 py-2.5">
-        <SidebarStatusWidget
-          online={online}
-          cashierName={session?.name ?? "—"}
-          todayRevenue={revenue}
-        />
+        <SidebarTodaySalesStrip todayRevenue={revenue} />
       </div>
     </aside>
   );

@@ -9,8 +9,12 @@ import { CommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { useAppSync } from "@/hooks/use-app-sync";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useAuth } from "@/components/auth-provider";
+import { HeaderSessionStatus } from "@/components/header-session-status";
+import { LiveStatusDot } from "@/components/live-status-dot";
 import { sessionInitials } from "@/lib/auth-session";
+import { isRemoteDataSource } from "@/lib/data-source";
 import { cn } from "@/lib/utils";
 import { LogOut } from "lucide-react";
 
@@ -19,6 +23,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { sync, syncing } = useAppSync();
   const { session, logout, isAdmin } = useAuth();
+  const online = useOnlineStatus();
+  const usesRemoteData = isRemoteDataSource();
 
   return (
     <div className="noise-bg relative min-h-screen flex">
@@ -75,6 +81,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <CommandPalette />
 
+          {session ? (
+            <div className="flex md:hidden items-center gap-2 min-w-0 max-w-[45vw]">
+              <LiveStatusDot online={online} size="md" />
+              <div className="min-w-0 leading-tight">
+                <p className="text-xs font-semibold truncate">{session.name}</p>
+                {isAdmin ? (
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    Active · @{session.username}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <HeaderSessionStatus
+            session={session}
+            online={online}
+            isAdmin={isAdmin}
+            usesRemoteData={usesRemoteData}
+          />
+
           <div className="flex-1" />
 
           <ThemeToggle />
@@ -109,10 +136,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="h-6 w-6 rounded-md bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-[10px] font-bold text-charcoal-950">
                 {session ? sessionInitials(session.name) : "?"}
               </div>
-              <span className="hidden sm:inline text-xs text-muted-foreground max-w-[120px] truncate">
-                {session?.name ?? "User"}
-                {isAdmin ? " · Admin" : ""}
-              </span>
+              <span className="sr-only">{session?.name ?? "Account"}</span>
             </button>
             {userMenuOpen && (
               <>
