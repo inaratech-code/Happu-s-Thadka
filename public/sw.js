@@ -1,5 +1,10 @@
 /* Happus Tadka — offline-first service worker */
-const CACHE_VERSION = "happus-tadka-v5";
+const CACHE_VERSION = "happus-tadka-v6";
+
+const SYNC_CACHE_NAME = "happus-tadka-sync-v1";
+const SYNC_QUEUE_KEY = "/__happus_sync_queue__";
+const BACKGROUND_SYNC_TAG = "happus-background-sync";
+const PERIODIC_SYNC_TAG = "happus-periodic-refresh";
 
 const PRECACHE_URLS = [
   "/offline.html",
@@ -100,6 +105,68 @@ async function staticResponse(request) {
     return Response.error();
   }
 }
+
+async function readSyncQueue() {
+  const cache = await caches.open(SYNC_CACHE_NAME);
+  const res = await cache.match(SYNC_QUEUE_KEY);
+  if (!res) return [];
+  try {
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeSyncQueue(entries) {
+  const cache = await caches.open(SYNC_CACHE_NAME);
+  await cache.put(SYNC_QUEUE_KEY, new Response(JSON.stringify(entries)));
+}
+
+async function flushBackgroundSyncQueue() {
+  const queue = await readSyncQueue();
+  if (queue.length === 0) return;
+
+  const remaining = [];
+  for (const entry of queue) {
+    try {
+      const res = await fetch("/api/state", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry.state),
+      });
+      if (!res.ok) remaining.push(entry);
+    } catch {
+      remaining.push(entry);
+    }
+  }
+  await writeSyncQueue(remaining);
+  if (remaining.length > 0) throw new Error("sync incomplete");
+}
+
+async function periodicRefresh() {
+  await caches.open(CACHE_VERSION).then((cache) =>
+    cache.addAll(["/manifest.json", "/offline.html"]).catch(() => {})
+  );
+  try {
+    await flushBackgroundSyncQueue();
+  } catch {
+    /* retry on next period */
+  }
+}
+
+self.addEventListener("periodicsync", (event) => {
+  if (event.tag === PERIODIC_SYNC_TAG) {
+    event.waitUntil(periodicRefresh());
+  }
+});
+
+self.addEventListener("sync", (event) => {
+  if (event.tag === BACKGROUND_SYNC_TAG) {
+    event.waitUntil(flushBackgroundSyncQueue());
+  }
+});
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;

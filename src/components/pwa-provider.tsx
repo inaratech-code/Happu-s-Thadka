@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { WifiOff } from "lucide-react";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import { registerPeriodicSync } from "@/lib/pwa-sync-queue";
 import { cn } from "@/lib/utils";
 
 function unregisterServiceWorkers() {
@@ -64,6 +65,7 @@ export function PwaProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     registerServiceWorker();
+    void registerPeriodicSync();
   }, []);
 
   return (

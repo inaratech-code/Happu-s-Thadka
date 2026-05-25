@@ -20,6 +20,23 @@ if (workbox.navigationPreload.isSupported()) {
   workbox.navigationPreload.enable();
 }
 
+const BACKGROUND_SYNC_TAG = "happus-background-sync";
+const PERIODIC_SYNC_TAG = "happus-periodic-refresh";
+
+self.addEventListener("periodicsync", (event) => {
+  if (event.tag === PERIODIC_SYNC_TAG) {
+    event.waitUntil(
+      caches.open(CACHE).then((cache) => cache.add(offlineFallbackPage).catch(() => {}))
+    );
+  }
+});
+
+self.addEventListener("sync", (event) => {
+  if (event.tag === BACKGROUND_SYNC_TAG) {
+    event.waitUntil(Promise.resolve());
+  }
+});
+
 self.addEventListener("fetch", (event) => {
   if (event.request.mode === "navigate") {
     event.respondWith(

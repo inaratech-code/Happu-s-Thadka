@@ -7,7 +7,7 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui", "browser"],
+  "display_override": ["tabbed", "standalone", "minimal-ui", "browser"],
   "orientation": "any",
   "lang": "en",
   "dir": "ltr",
@@ -27,6 +27,12 @@
   "edge_side_panel": {
     "preferred_width": 480
   },
+  "scope_extensions": [
+    {
+      "type": "origin",
+      "origin": "https://happus-tadka.vercel.app"
+    }
+  ],
   "protocol_handlers": [
     {
       "protocol": "web+happustadka",
@@ -61,6 +67,27 @@
   "note_taking": {
     "new_note_url": "/transactions/sales"
   },
+  "widgets": [
+    {
+      "name": "Today's Sales",
+      "short_name": "Sales",
+      "description": "Today's revenue at a glance",
+      "tag": "today-sales",
+      "template": "template",
+      "data": "/api/widget/today-sales",
+      "type": "application/json",
+      "auth": true,
+      "update": 3600,
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "screenshots": []
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",
