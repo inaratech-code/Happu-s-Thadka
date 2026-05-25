@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <title>Offline — Happus Tadka</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #0a0a0b;
+        color: #e8e8ea;
+      }
+      .card {
+        max-width: 22rem;
+        text-align: center;
+        padding: 2rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: #141416;
+      }
+      img {
+        width: 4rem;
+        height: 4rem;
+        border-radius: 0.75rem;
+        margin-bottom: 1rem;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: #9a9aa3;
+        line-height: 1.5;
+      }
+      button {
+        margin-top: 1.25rem;
+        width: 100%;
+        height: 2.75rem;
+        border: none;
+        border-radius: 0.5rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        background: linear-gradient(to bottom, #f59e0b, #ea580c);
+        color: #0a0a0b;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img src="/logo.png" alt="Happus Tadka" />
+      <h1>You’re offline</h1>
+      <p>
+        Open the app once while online to cache it. Your data is stored on this device and will sync when you’re back online.
+      </p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </div>
+  </body>
+</html>
