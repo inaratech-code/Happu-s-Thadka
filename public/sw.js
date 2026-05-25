@@ -1,5 +1,5 @@
 /* Happus Tadka — offline-first service worker */
-const CACHE_VERSION = "happus-tadka-v3";
+const CACHE_VERSION = "happus-tadka-v4";
 
 const PRECACHE_URLS = [
   "/offline.html",
@@ -20,12 +20,14 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key)))
-      )
-      .then(() => self.clients.claim())
+    (async () => {
+      if (self.registration.navigationPreload) {
+        await self.registration.navigationPreload.enable();
+      }
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key)));
+      await self.clients.claim();
+    })()
   );
 });
 
@@ -72,8 +74,11 @@ async function networkFirst(request, { cacheName = CACHE_VERSION } = {}) {
   return response;
 }
 
-async function navigationResponse(request) {
+async function navigationResponse(event) {
+  const { request } = event;
   try {
+    const preload = await event.preloadResponse;
+    if (preload) return preload;
     return await networkFirst(request);
   } catch {
     const cached = await caches.match(request);
@@ -99,7 +104,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET" || !isSameOrigin(request)) return;
 
   if (isNavigation(request)) {
-    event.respondWith(navigationResponse(request));
+    event.respondWith(navigationResponse(event));
     return;
   }
 
