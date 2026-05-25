@@ -83,15 +83,14 @@ function NavIcon({
   );
 }
 
+function pathMatches(pathname: string, href: string) {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 function useNavActive() {
   const pathname = usePathname();
-  return useCallback(
-    (href: string) => {
-      if (href === "/") return pathname === "/";
-      return pathname === href || pathname.startsWith(`${href}/`);
-    },
-    [pathname]
-  );
+  return useCallback((href: string) => pathMatches(pathname, href), [pathname]);
 }
 
 function NavLeaf({
@@ -155,6 +154,7 @@ function NavGroup({
       <button
         type="button"
         onClick={onToggle}
+        aria-expanded={expanded}
         className={cn(
           "group/nav flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left transition-colors",
           childActive ? "text-foreground/90" : "text-muted-foreground/75 hover:text-foreground/88"
@@ -173,10 +173,11 @@ function NavGroup({
         </span>
         <ChevronRight
           className={cn(
-            "h-3.5 w-3.5 shrink-0 text-muted-foreground/50 transition-transform duration-200",
+            "h-3.5 w-3.5 shrink-0 text-muted-foreground/50 transition-transform duration-200 pointer-events-none",
             expanded && "rotate-90"
           )}
           strokeWidth={NAV_ICON_STROKE}
+          aria-hidden
         />
       </button>
 
@@ -209,22 +210,23 @@ function NavGroup({
 }
 
 export function Sidebar({ mobile, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {
+  const pathname = usePathname();
   const isActive = useNavActive();
   const { session } = useAuth();
   const { state } = useStore();
-  const navItems = filterNavItems(NAV_ITEMS, session);
+  const navItems = useMemo(() => filterNavItems(NAV_ITEMS, session), [session]);
   const revenue = todaySales(state.transactions);
   const location = state.settings.location?.split(",")[0] ?? "Restaurant";
 
   const defaultExpanded = useMemo(() => {
     const map: Record<string, boolean> = {};
     for (const item of navItems) {
-      if (item.children?.some((c) => isActive(c.href))) {
+      if (item.children?.some((c) => pathMatches(pathname, c.href))) {
         map[item.label] = true;
       }
     }
     return map;
-  }, [navItems, isActive]);
+  }, [navItems, pathname]);
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => ({
     Operations: true,
@@ -240,14 +242,14 @@ export function Sidebar({ mobile, onNavigate }: { mobile?: boolean; onNavigate?:
       const next = { ...prev };
       let changed = false;
       for (const item of navItems) {
-        if (item.children?.some((c) => isActive(c.href)) && !next[item.label]) {
+        if (item.children?.some((c) => pathMatches(pathname, c.href)) && !next[item.label]) {
           next[item.label] = true;
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [navItems, isActive]);
+  }, [pathname, navItems]);
 
   const toggle = (label: string) => {
     setExpanded((prev) => ({ ...prev, [label]: !prev[label] }));
