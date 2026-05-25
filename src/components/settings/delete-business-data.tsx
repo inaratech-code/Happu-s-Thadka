@@ -9,8 +9,9 @@ import { useStore } from "@/lib/store";
 import { buildClearedAppState } from "@/lib/clear-business-data";
 import { verifyPassword } from "@/lib/password";
 import { isRemoteDataSource } from "@/lib/data-source";
+import { cn } from "@/lib/utils";
 
-export function DeleteBusinessDataSection() {
+export function DeleteBusinessDataSection({ className }: { className?: string }) {
   const { session, isAdmin } = useAuth();
   const { state, persist, refreshData } = useStore();
   const [open, setOpen] = useState(false);
@@ -89,7 +90,12 @@ export function DeleteBusinessDataSection() {
 
   return (
     <>
-      <div className="surface-card border border-red-500/25 p-5 space-y-3">
+      <div
+        className={cn(
+          "surface-card border border-red-500/25 p-5 space-y-3 h-full",
+          className
+        )}
+      >
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
             <AlertTriangle className="h-4 w-4" />
