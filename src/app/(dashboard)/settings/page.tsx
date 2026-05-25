@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { PageHeader, Input } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { ThemeSegmented } from "@/components/theme-toggle";
+import { DeleteBusinessDataSection } from "@/components/settings/delete-business-data";
 import { useStore } from "@/lib/store";
 
 export default function SettingsPage() {
@@ -96,6 +97,8 @@ export default function SettingsPage() {
           )}
         </ul>
       </div>
+
+      <DeleteBusinessDataSection />
     </div>
   );
 }
