@@ -11,6 +11,21 @@ type QueueEntry = {
   at: string;
 };
 
+type SyncManager = {
+  register: (tag: string) => Promise<void>;
+  getTags: () => Promise<string[]>;
+};
+
+type PeriodicSyncManager = {
+  register: (tag: string, options?: { minInterval: number }) => Promise<void>;
+  getTags: () => Promise<string[]>;
+};
+
+type ServiceWorkerRegistrationWithSync = ServiceWorkerRegistration & {
+  sync?: SyncManager;
+  periodicSync?: PeriodicSyncManager;
+};
+
 async function openSyncCache() {
   return caches.open(SYNC_CACHE_NAME);
 }
@@ -45,8 +60,8 @@ export async function enqueueStateForBackgroundSync(state: AppState) {
 
   if (!("serviceWorker" in navigator)) return;
   try {
-    const reg = await navigator.serviceWorker.ready;
-    if ("sync" in reg) {
+    const reg = (await navigator.serviceWorker.ready) as ServiceWorkerRegistrationWithSync;
+    if (reg.sync) {
       await reg.sync.register(BACKGROUND_SYNC_TAG);
     }
   } catch {
@@ -57,13 +72,14 @@ export async function enqueueStateForBackgroundSync(state: AppState) {
 export async function registerPeriodicSync() {
   if (!("serviceWorker" in navigator)) return;
   try {
-    const reg = await navigator.serviceWorker.ready;
-    if (!("periodicSync" in reg)) return;
+    const reg = (await navigator.serviceWorker.ready) as ServiceWorkerRegistrationWithSync;
+    const periodic = reg.periodicSync;
+    if (!periodic) return;
 
-    const tags = await reg.periodicSync.getTags();
+    const tags = await periodic.getTags();
     if (tags.includes(PERIODIC_SYNC_TAG)) return;
 
-    await reg.periodicSync.register(PERIODIC_SYNC_TAG, {
+    await periodic.register(PERIODIC_SYNC_TAG, {
       minInterval: 12 * 60 * 60 * 1000,
     });
   } catch {
