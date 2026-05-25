@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PwaProvider } from "@/components/pwa-provider";
@@ -58,7 +59,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     >
       <head>
         <meta name="theme-color" content={themeColorFor(theme)} />
+        <link rel="serviceworker" href="/sw.js" />
         <ThemeScript />
+        <Script id="pwa-sw-register" strategy="beforeInteractive">
+          {`if("serviceWorker"in navigator){var h=location.hostname;var dev=h==="localhost"||h==="127.0.0.1";if(!dev){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(){});}}`}
+        </Script>
       </head>
       <body className="min-h-full bg-background text-foreground" suppressHydrationWarning>
         <ThemeProvider initialTheme={theme}>

@@ -1,5 +1,5 @@
 /* Happus Tadka — offline-first service worker */
-const CACHE_VERSION = "happus-tadka-v4";
+const CACHE_VERSION = "happus-tadka-v5";
 
 const PRECACHE_URLS = [
   "/offline.html",
@@ -7,6 +7,8 @@ const PRECACHE_URLS = [
   "/logo.png",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
+  "/screenshots/mobile-390x844.png",
+  "/screenshots/desktop-1280x720.png",
 ];
 
 self.addEventListener("install", (event) => {

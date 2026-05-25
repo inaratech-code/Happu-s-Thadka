@@ -12,11 +12,16 @@ function unregisterServiceWorkers() {
   );
 }
 
+function isLocalDevHost() {
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1";
+}
+
 function registerServiceWorker() {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
-  /* Dev: SW breaks HMR — keep disabled locally */
-  if (process.env.NODE_ENV === "development") {
+  /* Dev: SW breaks HMR — keep disabled on localhost */
+  if (isLocalDevHost()) {
     void unregisterServiceWorkers();
     if ("caches" in window) {
       void caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
