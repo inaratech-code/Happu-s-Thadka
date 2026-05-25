@@ -6,6 +6,7 @@ import { PageHeader, Input } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { ThemeSegmented } from "@/components/theme-toggle";
 import { DeleteBusinessDataSection } from "@/components/settings/delete-business-data";
+import { PushNotificationsSection } from "@/components/settings/push-notifications";
 import { useStore } from "@/lib/store";
 
 export default function SettingsPage() {
@@ -34,6 +35,8 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground mt-2">Light or dark mode across the app.</p>
             </div>
           </div>
+
+          <PushNotificationsSection />
 
           <div className="surface-card p-5 space-y-4 flex-1">
             <h3 className="text-sm font-semibold">Restaurant profile</h3>

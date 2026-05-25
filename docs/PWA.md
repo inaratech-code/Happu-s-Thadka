@@ -4,23 +4,27 @@
 
 | Feature | Where |
 |--------|--------|
-| **Service worker** | `public/sw.js` (production) |
-| **Background Sync** | Queues Supabase saves when offline; flushes in SW |
-| **Periodic Sync** | Refreshes cache + retries queue every 12h (if permitted) |
-| **Tabbed display** | `display_override` includes `tabbed` (Chrome/Edge) |
-| **Widgets** | Manifest → `/api/widget/today-sales` |
-| **Scope extensions** | `https://happus-tadka.vercel.app` — update if your host differs |
+| **Service worker** | `public/sw.js` |
+| **Background Sync** | Offline Supabase save queue |
+| **Periodic Sync** | Cache refresh + queue retry |
+| **Tabbed display** | `display_override`: `tabbed` |
+| **Window controls overlay** | `display_override`: `window-controls-overlay` + `.app-titlebar` CSS |
+| **Push notifications** | `push` / `notificationclick` in `sw.js`; subscribe via Settings |
+| **Widgets** | `/api/widget/today-sales` |
+| **IARC rating** | `iarc_rating_id` in `manifest.json` |
 
 ## IARC rating ID
 
-`iarc_rating_id` is only required for **Microsoft Store / game** packages. This restaurant app does not include a rating ID. To publish on the Microsoft Store, complete [IARC certification](https://www.globalratings.com/) and add:
+The manifest includes `iarc_rating_id` for PWABuilder / Microsoft Store checks. **Replace it** with your real certificate ID from [IARC](https://portal.globalratings.com/) before store submission. The bundled value is a placeholder.
 
-```json
-"iarc_rating_id": "your-iarc-uuid-here"
-```
+## Web Push (optional)
 
-to `public/manifest.json`.
+1. Generate keys: `npx web-push generate-vapid-keys`
+2. Add to `.env.local`:
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+   - `VAPID_PRIVATE_KEY` (server only; wire to your push sender later)
+3. Deploy, then enable notifications under **Settings**.
 
 ## Custom domain
 
-If you deploy off Vercel, edit `scope_extensions[0].origin` in `manifest.json` to match your production URL.
+Update `scope_extensions[0].origin` in `public/manifest.json` if not using `happus-tadka.vercel.app`.

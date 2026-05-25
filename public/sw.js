@@ -1,5 +1,5 @@
 /* Happus Tadka — offline-first service worker */
-const CACHE_VERSION = "happus-tadka-v6";
+const CACHE_VERSION = "happus-tadka-v7";
 
 const SYNC_CACHE_NAME = "happus-tadka-sync-v1";
 const SYNC_QUEUE_KEY = "/__happus_sync_queue__";
@@ -166,6 +166,47 @@ self.addEventListener("sync", (event) => {
   if (event.tag === BACKGROUND_SYNC_TAG) {
     event.waitUntil(flushBackgroundSyncQueue());
   }
+});
+
+function pushPayload(event) {
+  if (!event.data) {
+    return { title: "Happus Tadka", body: "You have updates", url: "/" };
+  }
+  try {
+    return event.data.json();
+  } catch {
+    return { title: "Happus Tadka", body: event.data.text(), url: "/" };
+  }
+}
+
+self.addEventListener("push", (event) => {
+  const payload = pushPayload(event);
+  const title = payload.title ?? "Happus Tadka";
+  const options = {
+    body: payload.body ?? "Tap to open the app",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: { url: payload.url ?? "/" },
+    tag: payload.tag ?? "happus-notification",
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url ?? "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ("focus" in client) {
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
 });
 
 self.addEventListener("fetch", (event) => {

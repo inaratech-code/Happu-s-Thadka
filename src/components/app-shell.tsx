@@ -70,7 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen relative z-10 lg:pl-[15.75rem]">
         {/* Top bar */}
-        <header className="sticky top-0 z-20 flex items-center gap-2 sm:gap-3 h-14 px-3 sm:px-4 lg:px-6 border-b border-[var(--border)] bg-[var(--header-bg)] backdrop-blur-md safe-top">
+        <header className="app-titlebar sticky top-0 z-20 flex items-center gap-2 sm:gap-3 h-14 px-3 sm:px-4 lg:px-6 border-b border-[var(--border)] bg-[var(--header-bg)] backdrop-blur-md safe-top">
           <button
             onClick={() => setMobileOpen(true)}
             className="lg:hidden p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[var(--nav-hover)]"

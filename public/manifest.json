@@ -7,7 +7,14 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["tabbed", "standalone", "minimal-ui", "browser"],
+  "display_override": [
+    "window-controls-overlay",
+    "tabbed",
+    "standalone",
+    "minimal-ui",
+    "browser"
+  ],
+  "iarc_rating_id": "37bf1ef0-98b4-4cef-a6e7-0e7d3a1e6c6d",
   "orientation": "any",
   "lang": "en",
   "dir": "ltr",

@@ -37,6 +37,26 @@ self.addEventListener("sync", (event) => {
   }
 });
 
+self.addEventListener("push", (event) => {
+  const title = "Happus Tadka";
+  const body = event.data?.text() ?? "You have updates";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: "/" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.openWindow ? self.clients.openWindow("/") : Promise.resolve()
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   if (event.request.mode === "navigate") {
     event.respondWith(

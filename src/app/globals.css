@@ -585,6 +585,27 @@ input[type="number"] {
   border-color: var(--dashed-line);
 }
 
+/* PWA window-controls-overlay title bar */
+@media (display-mode: window-controls-overlay) {
+  .app-titlebar {
+    -webkit-app-region: drag;
+    app-region: drag;
+    padding-left: env(titlebar-area-x, 0);
+    padding-right: max(0px, calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0)));
+    width: env(titlebar-area-width, 100%);
+    min-height: max(3.5rem, env(titlebar-area-height, 3.5rem));
+    padding-top: env(titlebar-area-y, 0);
+  }
+
+  .app-titlebar button,
+  .app-titlebar a,
+  .app-titlebar input,
+  .app-titlebar [role="button"] {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+}
+
 /* ——— Premium sidebar ——— */
 .sidebar-shell {
   background: var(--sidebar-bg);
