@@ -244,7 +244,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const persistToBackend = useCallback((next: AppState) => {
     if (isRemoteDataSource()) {
-      void saveAppStateClient(next).catch((err) => console.error("Failed to save to Supabase", err));
+      void saveAppStateClient(next).catch((err) => console.error("Failed to save to server", err));
     } else {
       saveState(next);
     }

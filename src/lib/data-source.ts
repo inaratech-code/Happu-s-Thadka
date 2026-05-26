@@ -1,5 +1,5 @@
 import type { AppState } from "@/lib/types";
-import { isSupabaseConfiguredClient } from "@/lib/env";
+import { isDatabaseConfiguredClient } from "@/lib/env";
 import { enqueueStateForBackgroundSync } from "@/lib/pwa-sync-queue";
 
 const STORAGE_KEY = "happus-tadka-state";
@@ -8,7 +8,7 @@ const STORAGE_KEY = "happus-tadka-state";
 export async function loadAppStateClient(): Promise<AppState | null> {
   if (typeof window === "undefined") return null;
 
-  if (isSupabaseConfiguredClient()) {
+  if (isDatabaseConfiguredClient()) {
     const res = await fetch("/api/state", { credentials: "include", cache: "no-store" });
     if (res.status === 401) return null;
     if (!res.ok) {
@@ -27,7 +27,7 @@ export async function loadAppStateClient(): Promise<AppState | null> {
 export async function saveAppStateClient(state: AppState): Promise<void> {
   if (typeof window === "undefined") return;
 
-  if (isSupabaseConfiguredClient()) {
+  if (isDatabaseConfiguredClient()) {
     try {
       const res = await fetch("/api/state", {
         method: "PUT",
@@ -53,5 +53,5 @@ export async function saveAppStateClient(state: AppState): Promise<void> {
 }
 
 export function isRemoteDataSource(): boolean {
-  return isSupabaseConfiguredClient();
+  return isDatabaseConfiguredClient();
 }

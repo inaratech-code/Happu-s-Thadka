@@ -19,11 +19,11 @@ npm run dev
 
 Open [http://127.0.0.1:3000/login](http://127.0.0.1:3000/login) — demo credentials: `admin` / `admin123`
 
-### Optional: Supabase (shared database)
+### Optional: Neon Postgres (shared database)
 
-Without env vars, data stays in the browser (`localStorage`). With Supabase configured, the app uses **custom staff login** (not Supabase Auth) and syncs state through Next.js API routes.
+Without env vars, data stays in the browser (`localStorage`). With `DATABASE_URL` configured, the app uses **custom staff login** and syncs state through Next.js API routes.
 
-See **[docs/SUPABASE.md](docs/SUPABASE.md)** — copy `.env.example` → `.env.local`, run the migration in the Supabase SQL editor, then restart `npm run dev`.
+See **[docs/DATABASE.md](docs/DATABASE.md)** — copy `.env.example` → `.env.local`, run migrations on Neon, then restart `npm run dev`.
 
 Production build:
 
@@ -53,4 +53,4 @@ npm start
 
 ## Brand assets
 
-Place `logo.png` in `/public/logo.png` (copied from project root).
+Place your logo at `/public/logo.png`.

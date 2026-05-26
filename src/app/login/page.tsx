@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "@/lib/motion";
-import { Eye, EyeOff, Lock, User } from "lucide-react";
+import { Building2, Eye, EyeOff, Lock, User } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/primitives";
@@ -12,11 +12,15 @@ import { useAuth } from "@/components/auth-provider";
 import { useStore } from "@/lib/store";
 import { firstAllowedPath } from "@/lib/permissions";
 import { Providers } from "@/components/providers";
+import { isRemoteDataSource } from "@/lib/data-source";
+import { getFixedWorkspaceId } from "@/lib/env";
 
 function LoginForm() {
   const router = useRouter();
   const { login, session, ready } = useAuth();
-  const { state, refreshData } = useStore();
+  const { state } = useStore();
+  const usesServerDb = isRemoteDataSource();
+  const workspace = getFixedWorkspaceId();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin123");
   const [showPass, setShowPass] = useState(false);
@@ -33,13 +37,11 @@ function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const result = await login(username, password, state.staff);
+    const result = await login(workspace, username, password, state.staff);
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
-      return;
     }
-    refreshData();
   };
 
   return (
@@ -101,7 +103,9 @@ function LoginForm() {
 
             <h2 className="text-xl font-semibold tracking-tight">Sign in</h2>
             <p className="text-sm text-muted-foreground mt-1 mb-6">
-              Use your staff username and password
+              {usesServerDb
+                ? "Sign in with your staff credentials"
+                : "Use your staff username and password"}
             </p>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -109,6 +113,17 @@ function LoginForm() {
                 <p className="text-sm text-red-400 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2">
                   {error}
                 </p>
+              )}
+              {usesServerDb && (
+                <div className="rounded-lg border border-[var(--border)] bg-muted/30 px-3 py-2.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Workspace
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Building2 className="h-4 w-4 text-amber-500/90 shrink-0" />
+                    {workspace}
+                  </p>
+                </div>
               )}
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1.5 block">

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession, sessionToAuth } from "@/lib/auth/session-server";
-import { isSupabaseConfigured } from "@/lib/env";
+import { isDatabaseConfigured } from "@/lib/env";
 
 export async function GET() {
-  if (!isSupabaseConfigured()) {
+  if (!isDatabaseConfigured()) {
     return NextResponse.json({ session: null }, { status: 200 });
   }
 

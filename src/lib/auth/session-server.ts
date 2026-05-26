@@ -9,6 +9,8 @@ export const SESSION_COOKIE = "happus_session";
 export type SessionPayload = {
   staffId: string;
   restaurantId: string;
+  tenantSlug: string;
+  restaurantName: string;
   username: string;
   name: string;
   role: StaffRole;
@@ -18,7 +20,7 @@ export type SessionPayload = {
 function secretKey() {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 16) {
-    throw new Error("SESSION_SECRET must be set (min 16 characters) when using Supabase");
+    throw new Error("SESSION_SECRET must be set (min 16 characters) when using the server database");
   }
   return new TextEncoder().encode(secret);
 }
@@ -36,11 +38,14 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
     const { payload } = await jwtVerify(token, secretKey());
     const staffId = payload.staffId as string;
     const restaurantId = payload.restaurantId as string;
-    if (!staffId || !restaurantId) return null;
+    const tenantSlug = payload.tenantSlug as string;
+    if (!staffId || !restaurantId || !tenantSlug) return null;
     const role = payload.role as StaffRole;
     return {
       staffId,
       restaurantId,
+      tenantSlug,
+      restaurantName: (payload.restaurantName as string) ?? "",
       username: payload.username as string,
       name: payload.name as string,
       role,
@@ -68,6 +73,8 @@ export function sessionToAuth(session: SessionPayload): AuthSession {
     name: session.name,
     role: session.role,
     permissions: session.permissions,
+    workspace: session.tenantSlug,
+    restaurantName: session.restaurantName,
   };
 }
 

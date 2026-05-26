@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session-server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { verifyPassword } from "@/lib/password";
-import { isSupabaseConfigured } from "@/lib/env";
-import { loadAppStateFromDb, saveAppStateToDb } from "@/lib/db/repository";
+import { isDatabaseConfigured } from "@/lib/env";
+import {
+  findStaffForPasswordCheck,
+  loadAppStateFromDb,
+  saveAppStateToDb,
+} from "@/lib/db/repository";
+import { resolveRestaurantId } from "@/lib/db/resolve-restaurant";
 import { buildClearedAppState } from "@/lib/clear-business-data";
 
 export async function POST(request: Request) {
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Supabase is not configured on the server" }, { status: 503 });
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json({ error: "Database is not configured on the server" }, { status: 503 });
   }
 
   const session = await getServerSession();
@@ -31,17 +35,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Password is required" }, { status: 400 });
   }
 
-  const db = getSupabaseAdmin();
-  const { data: member, error: staffErr } = await db
-    .from("staff")
-    .select("id, password_hash, active")
-    .eq("id", session.staffId)
-    .eq("restaurant_id", session.restaurantId)
-    .maybeSingle();
+  const restaurantId = await resolveRestaurantId(session);
 
-  if (staffErr) {
-    return NextResponse.json({ error: staffErr.message }, { status: 500 });
-  }
+  const member = await findStaffForPasswordCheck(session.staffId, restaurantId);
+
   if (!member?.active) {
     return NextResponse.json({ error: "Account not found or disabled" }, { status: 401 });
   }
@@ -52,9 +49,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const current = await loadAppStateFromDb(session.restaurantId);
+    const current = await loadAppStateFromDb(restaurantId);
     const cleared = buildClearedAppState(current);
-    await saveAppStateToDb(cleared, session.restaurantId);
+    await saveAppStateToDb(cleared, restaurantId);
     return NextResponse.json({ ok: true, state: cleared });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to clear data";

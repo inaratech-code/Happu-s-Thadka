@@ -15,12 +15,14 @@ import type { AuthSession, StaffMember } from "@/lib/types";
 import { clearSession, getSession, setSession } from "@/lib/auth-session";
 import { verifyPassword } from "@/lib/password";
 import { isRemoteDataSource } from "@/lib/data-source";
+import { getFixedWorkspaceId } from "@/lib/env";
 import { ALL_PERMISSIONS, canAccessPath, hasPermission, type AppPermission } from "@/lib/permissions";
 
 type AuthContextValue = {
   session: AuthSession | null;
   ready: boolean;
   login: (
+    workspace: string,
     username: string,
     password: string,
     staff: StaffMember[]
@@ -33,6 +35,27 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+const SESSION_CACHE_KEY = "happus-auth-session";
+
+function readCachedSession(): AuthSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as AuthSession) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedSession(session: AuthSession | null) {
+  if (typeof window === "undefined") return;
+  if (session) {
+    sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
+  } else {
+    sessionStorage.removeItem(SESSION_CACHE_KEY);
+  }
+}
 
 function toSession(member: StaffMember): AuthSession {
   return {
@@ -52,16 +75,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => {
     if (usesRemoteAuth) {
+      const cached = readCachedSession();
+      if (cached) {
+        setSessionState(cached);
+        setReady(true);
+      }
+
       void fetch("/api/auth/me", { credentials: "include", cache: "no-store" })
         .then(async (res) => {
           if (res.ok) {
             const data = (await res.json()) as { session: AuthSession | null };
             setSessionState(data.session);
+            writeCachedSession(data.session);
           } else {
             setSessionState(null);
+            writeCachedSession(null);
           }
         })
-        .catch(() => setSessionState(null))
+        .catch(() => {
+          if (!cached) {
+            setSessionState(null);
+            writeCachedSession(null);
+          }
+        })
         .finally(() => setReady(true));
       return;
     }
@@ -76,13 +112,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (username: string, password: string, staff: StaffMember[]) => {
+    async (workspace: string, username: string, password: string, staff: StaffMember[]) => {
       if (usesRemoteAuth) {
         const res = await fetch("/api/auth/login", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({
+            workspace: getFixedWorkspaceId(),
+            username,
+            password,
+          }),
         });
         const data = (await res.json().catch(() => ({}))) as {
           ok?: boolean;
@@ -93,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { ok: false as const, error: data.error ?? "Login failed" };
         }
         if (data.session) {
+          writeCachedSession(data.session);
           setSessionState(data.session);
         }
         return { ok: true as const };
@@ -119,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     if (usesRemoteAuth) {
+      writeCachedSession(null);
       void fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } else {
       clearSession();

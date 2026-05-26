@@ -29,6 +29,10 @@ export type AuthSession = {
   name: string;
   role: StaffRole;
   permissions: AppPermission[];
+  /** Tenant workspace code (server DB mode). */
+  workspace?: string;
+  /** Display name for the restaurant (server DB mode). */
+  restaurantName?: string;
 };
 
 export type InventoryItem = {

@@ -13,11 +13,11 @@
     "rebuild": "npm run clean && npm run build",
     "prestart": "node scripts/ensure-next-cache.mjs --production",
     "start": "next start -H 127.0.0.1",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:migrate": "node scripts/run-migrations.mjs"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.10.3",
-    "@supabase/supabase-js": "^2.106.1",
+    "@neondatabase/serverless": "^1.1.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.4.7",
     "jose": "^6.2.3",

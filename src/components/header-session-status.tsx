@@ -16,6 +16,12 @@ export function HeaderSessionStatus({ session, online, isAdmin, usesRemoteData }
   if (!session) return null;
 
   const syncLabel = online ? (usesRemoteData ? "Synced" : "Online") : "Offline";
+  const title = session.restaurantName ?? session.name;
+  const subtitle = session.restaurantName
+    ? `${session.workspace ? `${session.workspace} · ` : ""}${session.name}${isAdmin ? " · Admin" : ""}`
+    : isAdmin
+      ? `Active · @${session.username} · Admin`
+      : `Active · @${session.username}`;
 
   return (
     <div
@@ -26,19 +32,10 @@ export function HeaderSessionStatus({ session, online, isAdmin, usesRemoteData }
         <LiveStatusDot online={online} size="md" />
         <div className="min-w-0 leading-tight">
           <p className="text-xs font-semibold text-foreground truncate max-w-[200px] lg:max-w-[280px]">
-            {session.name}
+            {title}
           </p>
           <p className="text-[10px] text-muted-foreground truncate max-w-[200px] lg:max-w-[280px]">
-            {isAdmin ? (
-              <>
-                Active · <span className="text-foreground/80">@{session.username}</span>
-                <span className="text-amber-400/90 font-medium"> · Admin</span>
-              </>
-            ) : (
-              <>
-                Active · @{session.username}
-              </>
-            )}
+            {subtitle}
           </p>
         </div>
       </div>

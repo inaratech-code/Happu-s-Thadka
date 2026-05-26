@@ -4,6 +4,9 @@ node_modules
 out
 .env*.local
 .DS_Store
+/node
+/happus-tadka@*
+/logo.png
 *.tsbuildinfo
 next-env.d.ts
 .vercel

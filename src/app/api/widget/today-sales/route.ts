@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session-server";
 import { loadAppStateFromDb } from "@/lib/db/repository";
-import { isSupabaseConfigured } from "@/lib/env";
+import { resolveRestaurantId } from "@/lib/db/resolve-restaurant";
+import { isDatabaseConfigured } from "@/lib/env";
 import { todaySales } from "@/lib/store-utils";
 
 /** PWA widget data (application/json) */
 export async function GET() {
-  if (!isSupabaseConfigured()) {
+  if (!isDatabaseConfigured()) {
     return NextResponse.json({
       title: "Happus Tadka",
       subtitle: "Today's sales",
       value: "—",
-      hint: "Connect Supabase for live totals",
+      hint: "Set DATABASE_URL and NEXT_PUBLIC_USE_SERVER_DB for live totals",
     });
   }
 
@@ -21,7 +22,8 @@ export async function GET() {
   }
 
   try {
-    const state = await loadAppStateFromDb(session.restaurantId);
+    const restaurantId = await resolveRestaurantId(session);
+    const state = await loadAppStateFromDb(restaurantId);
     const total = todaySales(state.transactions);
     return NextResponse.json({
       title: "Happus Tadka",
