@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -13,9 +13,10 @@ type Props = {
   className?: string;
   /** Preload when this thumb is likely LCP (first visible menu tiles on POS) */
   priority?: boolean;
+  loading?: "eager" | "lazy";
 };
 
-export function MenuItemThumb({
+export const MenuItemThumb = memo(function MenuItemThumb({
   name,
   emoji,
   imageUrl,
@@ -23,6 +24,7 @@ export function MenuItemThumb({
   size = "md",
   className,
   priority = false,
+  loading = "lazy",
 }: Props) {
   const [src, setSrc] = useState<string | undefined>(imageUrl ?? categoryImageUrl);
 
@@ -66,6 +68,7 @@ export function MenuItemThumb({
         fill
         unoptimized
         priority={priority}
+        loading={priority ? "eager" : loading}
         sizes={size === "sm" ? "32px" : "120px"}
         className="object-cover"
         onError={() => {
@@ -78,4 +81,4 @@ export function MenuItemThumb({
       />
     </div>
   );
-}
+});

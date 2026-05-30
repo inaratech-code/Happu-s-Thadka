@@ -1,13 +1,13 @@
 import type { InventoryItem, KitchenOrder, MenuCategoryDef, MenuItem, Transaction } from "./types";
 import { categoryImageByName } from "./menu-categories";
-import { ensureMenuCatalog } from "./default-menu";
 import { resolveMenuImage } from "./menu-images";
 
+/** Inventory is merged with catalog in hydrateState — avoid re-merging on every render */
 export function menuFromInventory(
   inventory: InventoryItem[],
   menuCategories: MenuCategoryDef[] = []
 ): MenuItem[] {
-  return ensureMenuCatalog(inventory)
+  return inventory
     .filter((i) => i.type === "sellable" && Number(i.sellingPrice) > 0)
     .map((i) => {
       const visual = resolveMenuImage(

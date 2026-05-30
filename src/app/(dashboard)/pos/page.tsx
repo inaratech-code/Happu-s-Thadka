@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, startTransition } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "@/lib/motion";
@@ -14,12 +14,12 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
-import { MenuItemThumb } from "@/components/menu-item-thumb";
+import { PosMenuGrid } from "@/components/pos/pos-menu-grid";
 import { PosOrderPanel } from "@/components/pos/pos-order-panel";
 import { PosPaymentModal, type PosPaymentMethod } from "@/components/pos/payment-modal";
 import { useStore } from "@/lib/store";
 import { openOrderForTable } from "@/lib/pos-orders";
-import type { PosOrderLine } from "@/lib/types";
+import type { MenuItem, PosOrderLine } from "@/lib/types";
 import { cn, formatCurrency } from "@/lib/utils";
 
 type CartItem = {
@@ -163,13 +163,15 @@ export default function POSPage() {
     if (!activeOrder?.id || skipPersistRef.current) return;
     if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
     persistTimerRef.current = setTimeout(() => {
-      updatePosOrder(activeOrder.id, {
-        items: cartToLines(cart),
-        discountType,
-        discountValue: parseFloat(discountValue) || 0,
-        table: tableLabel,
+      startTransition(() => {
+        updatePosOrder(activeOrder.id, {
+          items: cartToLines(cart),
+          discountType,
+          discountValue: parseFloat(discountValue) || 0,
+          table: tableLabel,
+        });
       });
-    }, 250);
+    }, 600);
     return () => {
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
     };
@@ -185,13 +187,17 @@ export default function POSPage() {
     return map;
   }, [state.posOrders]);
 
-  const filtered = menuItems.filter((m) => {
-    const matchCat = category === "All" || m.category === category;
-    const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
-  });
+  const searchLower = search.trim().toLowerCase();
 
-  const addToCart = (item: (typeof menuItems)[0]) => {
+  const filtered = useMemo(() => {
+    return menuItems.filter((m) => {
+      const matchCat = category === "All" || m.category === category;
+      const matchSearch = !searchLower || m.name.toLowerCase().includes(searchLower);
+      return matchCat && matchSearch;
+    });
+  }, [menuItems, category, searchLower]);
+
+  const addToCart = useCallback((item: MenuItem) => {
     setShowOrderPanel(true);
     setCart((prev) => {
       const existing = prev.find((c) => c.id === item.id);
@@ -211,7 +217,7 @@ export default function POSPage() {
         },
       ];
     });
-  };
+  }, []);
 
   const updateQty = (id: string, delta: number) => {
     setCart((prev) =>
@@ -449,32 +455,7 @@ export default function POSPage() {
             </p>
           </div>
         ) : (
-          <div className="pos-menu-grid min-w-0 max-w-full">
-            {filtered.map((item, index) => (
-              <motion.button
-                key={item.id}
-                type="button"
-                whileTap={{ scale: 0.98 }}
-                onClick={() => addToCart(item)}
-                className="surface-card-interactive text-left p-2 sm:p-3 min-w-0 w-full h-auto block"
-              >
-                <MenuItemThumb
-                  name={item.name}
-                  emoji={item.emoji}
-                  imageUrl={item.imageUrl}
-                  categoryImageUrl={item.categoryImageUrl}
-                  className="mb-1.5 sm:mb-2 w-full"
-                  priority={index < 4}
-                />
-                <p className="text-xs sm:text-sm font-medium leading-tight text-foreground line-clamp-2">
-                  {item.name}
-                </p>
-                <p className="text-[11px] sm:text-xs text-price tabular-nums mt-0.5 sm:mt-1 font-semibold">
-                  {formatCurrency(item.price)}
-                </p>
-              </motion.button>
-            ))}
-          </div>
+          <PosMenuGrid items={filtered} onAdd={addToCart} />
         )}
 
         {cartCount > 0 && !showOrderPanel && hasPanelContent && (

@@ -530,6 +530,20 @@ input[type="number"] {
   align-self: start;
 }
 
+.pos-menu-tile {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 9rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .surface-card-interactive.pos-menu-tile {
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      transform 0.1s ease;
+  }
+}
+
 @media (min-width: 640px) {
   .pos-menu-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
