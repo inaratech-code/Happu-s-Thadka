@@ -10,6 +10,7 @@ import type {
   StockMovement,
   Transaction,
 } from "@/lib/types";
+import { ensureMenuCatalog } from "@/lib/default-menu";
 import { DEFAULT_PARTIES, ensureDefaultParties } from "@/lib/default-parties";
 import { DEFAULT_FINANCIAL_ACCOUNTS } from "@/lib/default-accounts";
 import { DEFAULT_ADMIN } from "@/lib/default-admin";
@@ -64,7 +65,7 @@ export function rowsToAppState(rows: DbRows): AppState {
   }));
 
   return {
-    inventory: rows.inventory.map(mapInventory),
+    inventory: ensureMenuCatalog(rows.inventory.map(mapInventory)),
     kitchenOrders: rows.kitchen_orders.map(mapKitchenOrder),
     transactions: rows.transactions.map(mapTransaction),
     ledgerEntries: rows.ledger_entries.map(mapLedgerEntry),

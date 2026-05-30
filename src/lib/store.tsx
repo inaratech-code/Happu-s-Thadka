@@ -23,6 +23,7 @@ import type {
   Transaction,
 } from "./types";
 import { DEFAULT_ADMIN } from "./default-admin";
+import { ensureMenuCatalog } from "./default-menu";
 import { DEFAULT_PARTIES, ensureDefaultParties, isFixedLedgerParty } from "./default-parties";
 import {
   DEFAULT_DIGITAL_ACCOUNT_ID,
@@ -108,7 +109,7 @@ function hydrateState(parsed: AppState): AppState {
     return {
       ...emptyState,
       ...parsed,
-      inventory: Array.isArray(parsed.inventory) ? parsed.inventory : [],
+      inventory: ensureMenuCatalog(Array.isArray(parsed.inventory) ? parsed.inventory : []),
       kitchenOrders: Array.isArray(parsed.kitchenOrders) ? parsed.kitchenOrders : [],
       transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
       stockMovements: Array.isArray(parsed.stockMovements) ? parsed.stockMovements : [],
