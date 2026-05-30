@@ -33,8 +33,8 @@
 /* Dark theme (default — also applies before theme script runs) */
 html {
   overflow-x: hidden;
-  overflow-y: auto;
   max-width: 100%;
+  height: 100%;
   --background: #0a0a0b;
   --foreground: #e8e6e3;
   --surface: #111113;
@@ -194,12 +194,11 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 100%;
+  height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   max-width: 100%;
-  -webkit-overflow-scrolling: touch;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -549,8 +548,17 @@ input[type="number"] {
     opacity: 0.5;
   }
 
-  main {
+  html.app-shell-active,
+  html.app-shell-active body {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .app-main-scroll {
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior-y: contain;
   }
 }
 

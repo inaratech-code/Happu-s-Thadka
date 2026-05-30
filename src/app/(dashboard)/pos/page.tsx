@@ -349,8 +349,8 @@ export default function POSPage() {
   }, [showOrderPanel, showPayment, showReceipt]);
 
   return (
-    <div className="flex flex-col gap-3 w-full max-w-full min-w-0 overflow-x-hidden lg:flex-1 lg:min-h-0 lg:flex-row lg:gap-4 lg:min-h-[calc(100dvh-8.5rem)]">
-      <div className="flex flex-col min-w-0 max-w-full overflow-x-hidden lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
+    <div className="flex flex-col gap-3 w-full max-w-full min-w-0 lg:flex-1 lg:min-h-0 lg:flex-row lg:gap-4 lg:min-h-[calc(100dvh-8.5rem)] lg:overflow-hidden">
+      <div className="flex flex-col min-w-0 max-w-full lg:flex-1 lg:min-h-0 lg:flex lg:flex-col lg:overflow-hidden">
         <div className="flex items-stretch gap-2 mb-2 min-w-0 max-w-full">
           <div className="relative flex-1 min-w-0 lg:max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
@@ -385,7 +385,7 @@ export default function POSPage() {
           </Link>
         </div>
         {tables.length > 0 ? (
-          <div className="flex gap-1.5 w-full min-w-0 max-w-full mb-2 overflow-x-auto scrollbar-none pb-0.5 touch-pan-x">
+          <div className="flex gap-1.5 w-full min-w-0 max-w-full mb-2 overflow-x-auto scrollbar-none pb-0.5 touch-pan-x overscroll-x-contain">
             {tables.map((t) => {
               const active = tableLabel === t.name;
               const qty = openByTable.get(t.name) ?? 0;
@@ -426,7 +426,7 @@ export default function POSPage() {
           <p className="text-xs text-emerald-600 dark:text-emerald-400 -mt-2 mb-1">{kitchenNotice}</p>
         )}
 
-        <div className="flex gap-1.5 w-full min-w-0 max-w-full overflow-x-auto pb-2 mb-2 scrollbar-none touch-pan-x">
+        <div className="flex gap-1.5 w-full min-w-0 max-w-full overflow-x-auto pb-2 mb-2 scrollbar-none touch-pan-x overscroll-x-contain">
           {["All", ...categories].map((cat) => (
             <button
               key={cat}
@@ -449,7 +449,7 @@ export default function POSPage() {
             </p>
           </div>
         ) : (
-          <div className="pos-menu-grid min-w-0 max-w-full mobile-nav-pad lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-y-contain">
+          <div className="pos-menu-grid min-w-0 max-w-full pb-4 lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-y-contain lg:pb-0">
             {filtered.map((item, index) => (
               <motion.button
                 key={item.id}

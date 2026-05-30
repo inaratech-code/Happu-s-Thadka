@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "@/lib/motion";
 import { Menu, Bell, RefreshCw, X } from "lucide-react";
 import { Sidebar } from "./sidebar";
@@ -26,8 +26,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const online = useOnlineStatus();
   const usesRemoteData = isRemoteDataSource();
 
+  useEffect(() => {
+    document.documentElement.classList.add("app-shell-active");
+    return () => document.documentElement.classList.remove("app-shell-active");
+  }, []);
+
   return (
-    <div className="noise-bg relative min-h-screen flex min-w-0 max-w-full overflow-x-hidden">
+    <div className="noise-bg relative min-h-screen max-lg:h-dvh max-lg:max-h-dvh flex min-w-0 max-w-full overflow-x-hidden max-lg:overflow-hidden">
       <div className="ambient-glow ambient-glow-amber" />
       <div className="ambient-glow ambient-glow-orange" />
 
@@ -68,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-screen min-w-0 max-w-full overflow-x-hidden relative z-10 lg:pl-[15.75rem]">
+      <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-hidden relative z-10 max-lg:h-full max-lg:min-h-0 lg:min-h-screen lg:pl-[15.75rem]">
         {/* Top bar */}
         <header className="app-titlebar sticky top-0 z-20 flex items-center gap-1.5 sm:gap-3 h-14 px-2 sm:px-4 lg:px-6 border-b border-[var(--border)] bg-[var(--header-bg)] backdrop-blur-md safe-top">
           <button
@@ -171,7 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <main
           className={cn(
-            "flex flex-1 flex-col min-w-0 min-h-0 overflow-x-hidden max-lg:overflow-y-auto p-3 sm:p-4 lg:p-6",
+            "app-main-scroll flex flex-1 flex-col min-w-0 min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain p-3 sm:p-4 lg:p-6",
             "pb-[calc(var(--mobile-bottom-nav-height)+env(safe-area-inset-bottom)+0.5rem))] lg:pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
           )}
         >
