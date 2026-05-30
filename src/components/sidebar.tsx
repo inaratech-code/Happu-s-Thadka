@@ -23,6 +23,8 @@ import {
   ChefHat,
   Settings,
   Users,
+  UtensilsCrossed,
+  ClipboardList,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -56,6 +58,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   ChefHat,
   Settings,
   Users,
+  UtensilsCrossed,
+  ClipboardList,
 };
 
 function NavIcon({

@@ -18,7 +18,9 @@ import type {
   InventoryItem,
   KitchenOrder,
   LedgerEntry,
+  MenuCategoryDef,
   Party,
+  PosOrder,
   StaffMember,
   StockMovement,
   Transaction,
@@ -34,6 +36,9 @@ import {
 import { hashPassword } from "./password";
 import { ALL_PERMISSIONS } from "./permissions";
 import { loadAppStateClient, saveAppStateClient, isRemoteDataSource } from "./data-source";
+import { normalizeIsoDate } from "./iso-date";
+import { formatPosOrderRef } from "./pos-order";
+import { ensureMenuCategories, needsMenuCategoriesPersist } from "./menu-categories";
 import { menuFromInventory } from "./store-utils";
 
 const STORAGE_KEY = "happus-tadka-state";
@@ -42,10 +47,12 @@ const defaultSettings: AppSettings = {
   restaurantName: "Happus Tadka",
   location: "Mahendinagar-4-Bhashi, Ghuiyaghat",
   tables: [],
+  menuCategories: [],
 };
 
 const emptyState: AppState = {
   inventory: [],
+  posOrders: [],
   kitchenOrders: [],
   transactions: [],
   ledgerEntries: [],
@@ -56,6 +63,7 @@ const emptyState: AppState = {
   settings: defaultSettings,
   kotCounter: 1000,
   txCounter: 1,
+  orderCounter: 1,
 };
 
 const LEGACY_DIGITAL_ACCOUNT_ID = "fac-upi";
@@ -85,10 +93,19 @@ function normalizeLedgerEntry(entry: LedgerEntry, defaultAccountId: string): Led
     (entry.debit > 0 && !entry.credit ? "payment" : entry.credit > 0 && !entry.debit ? "receipt" : "general");
   return {
     ...entry,
+    date: normalizeIsoDate(entry.date),
     accountId,
     kind,
     paymentMethod: migratePaymentMethod(entry.paymentMethod),
   };
+}
+
+function normalizeTransaction(tx: Transaction): Transaction {
+  return { ...tx, date: normalizeIsoDate(tx.date) };
+}
+
+function normalizeStockMovement(m: StockMovement): StockMovement {
+  return { ...m, date: normalizeIsoDate(m.date) };
 }
 
 function hydrateState(parsed: AppState): AppState {
@@ -114,16 +131,30 @@ function hydrateState(parsed: AppState): AppState {
       ...emptyState,
       ...parsed,
       inventory,
+      posOrders: Array.isArray(parsed.posOrders) ? parsed.posOrders : [],
       kitchenOrders: Array.isArray(parsed.kitchenOrders) ? parsed.kitchenOrders : [],
-      transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
-      stockMovements: Array.isArray(parsed.stockMovements) ? parsed.stockMovements : [],
+      transactions: (Array.isArray(parsed.transactions) ? parsed.transactions : []).map(
+        normalizeTransaction
+      ),
+      stockMovements: (Array.isArray(parsed.stockMovements) ? parsed.stockMovements : []).map(
+        normalizeStockMovement
+      ),
       staff: withAdmin,
-      settings: { ...defaultSettings, ...(parsed.settings ?? {}) },
+      settings: {
+        ...defaultSettings,
+        ...(parsed.settings ?? {}),
+        menuCategories: ensureMenuCategories(
+          Array.isArray(parsed.settings?.menuCategories) ? parsed.settings.menuCategories : [],
+          inventory
+        ),
+      },
       financialAccounts,
       ledgerEntries,
       parties: ensureDefaultParties(Array.isArray(parsed.parties) ? parsed.parties : []),
       kotCounter: typeof parsed.kotCounter === "number" ? parsed.kotCounter : emptyState.kotCounter,
       txCounter: typeof parsed.txCounter === "number" ? parsed.txCounter : emptyState.txCounter,
+      orderCounter:
+        typeof parsed.orderCounter === "number" ? parsed.orderCounter : emptyState.orderCounter,
     };
   } catch {
     return { ...emptyState, staff: [DEFAULT_ADMIN] };
@@ -184,8 +215,34 @@ type StoreContextValue = {
   updateParty: (id: string, patch: Partial<Party>) => { ok: true } | { ok: false; error: string };
   deleteParty: (id: string) => { ok: true } | { ok: false; error: string };
   addKitchenOrder: (order: Omit<KitchenOrder, "id" | "createdAt">) => string;
+  createPosOrder: (table: string) => PosOrder;
+  updatePosOrder: (id: string, patch: Partial<Pick<PosOrder, "items" | "discountType" | "discountValue" | "table">>) => void;
+  cancelPosOrder: (id: string) => void;
+  sendPosOrderToKitchen: (input: {
+    posOrderId: string;
+    table: string;
+    items: { name: string; qty: number }[];
+  }) => string | null;
+  finalizePosOrder: (input: {
+    posOrderId: string;
+    table: string;
+    items: { name: string; qty: number }[];
+    stockLines: { inventoryId: string; qty: number; name: string }[];
+    paymentLabel: string;
+    paymentMethod: string;
+    amountPaid: number;
+    total: number;
+    isCredit?: boolean;
+    creditCustomer?: string;
+  }) => { transactionId: string; kotId: string; orderRef: string } | null;
   updateKitchenStatus: (id: string, status: KitchenOrder["status"]) => void;
   updateSettings: (patch: Partial<AppSettings>) => void;
+  addMenuCategory: (input: { name: string; imageUrl?: string }) => { ok: true } | { ok: false; error: string };
+  updateMenuCategory: (
+    id: string,
+    patch: Partial<Pick<MenuCategoryDef, "name" | "imageUrl" | "sortOrder">>
+  ) => { ok: true } | { ok: false; error: string };
+  removeMenuCategory: (id: string) => { ok: true } | { ok: false; error: string };
   addTable: (name: string) => void;
   removeTable: (id: string) => void;
   addStaff: (input: {
@@ -286,6 +343,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /** Ensure POS menu catalog exists in memory and sync to DB/local once after load */
+  useEffect(() => {
+    if (!hydrated) return;
+    setState((prev) => {
+      if (!needsMenuCatalogPersist(prev.inventory)) return prev;
+      const next = { ...prev, inventory: ensureMenuCatalog(prev.inventory) };
+      persistToBackend(next);
+      return next;
+    });
+  }, [hydrated, persistToBackend]);
+
+  /** Seed menu categories from catalog / inventory when missing */
+  useEffect(() => {
+    if (!hydrated) return;
+    setState((prev) => {
+      if (!needsMenuCategoriesPersist(prev.settings.menuCategories, prev.inventory)) return prev;
+      const next = {
+        ...prev,
+        settings: {
+          ...prev.settings,
+          menuCategories: ensureMenuCategories(prev.settings.menuCategories, prev.inventory),
+        },
+      };
+      persistToBackend(next);
+      return next;
+    });
+  }, [hydrated, persistToBackend]);
+
   const persist = useCallback(
     (next: AppState) => {
       setState(next);
@@ -305,7 +390,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [persistToBackend]
   );
 
-  const menuItems = useMemo(() => menuFromInventory(state.inventory), [state.inventory]);
+  const menuItems = useMemo(
+    () => menuFromInventory(state.inventory, state.settings.menuCategories),
+    [state.inventory, state.settings.menuCategories]
+  );
 
   const addInventory = useCallback(
     (item: Omit<InventoryItem, "id">) => {
@@ -528,6 +616,270 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [patch]
   );
 
+  const createPosOrder = useCallback(
+    (table: string): PosOrder => {
+      const existing = state.posOrders.find((o) => o.status === "open" && o.table === table);
+      if (existing) return existing;
+
+      const draft: PosOrder = {
+        id: uid("ord"),
+        orderRef: formatPosOrderRef(state.orderCounter),
+        table,
+        items: [],
+        status: "open",
+        discountType: "flat",
+        discountValue: 0,
+        createdAt: new Date().toISOString(),
+      };
+
+      let resolved: PosOrder = draft;
+      patch((s) => {
+        const again = s.posOrders.find((o) => o.status === "open" && o.table === table);
+        if (again) {
+          resolved = again;
+          return s;
+        }
+        resolved = draft;
+        return {
+          ...s,
+          orderCounter: s.orderCounter + 1,
+          posOrders: [draft, ...s.posOrders],
+        };
+      });
+
+      return resolved;
+    },
+    [patch, state.posOrders, state.orderCounter]
+  );
+
+  const updatePosOrder = useCallback(
+    (
+      id: string,
+      data: Partial<Pick<PosOrder, "items" | "discountType" | "discountValue" | "table">>
+    ) => {
+      patch((s) => ({
+        ...s,
+        posOrders: s.posOrders.map((o) =>
+          o.id === id && o.status === "open" ? { ...o, ...data } : o
+        ),
+      }));
+    },
+    [patch]
+  );
+
+  const cancelPosOrder = useCallback(
+    (id: string) => {
+      patch((s) => {
+        const order = s.posOrders.find((o) => o.id === id && o.status === "open");
+        const kotId = order?.kitchenOrderId;
+        return {
+          ...s,
+          posOrders: s.posOrders.map((o) =>
+            o.id === id && o.status === "open" ? { ...o, status: "cancelled" as const } : o
+          ),
+          kitchenOrders: kotId
+            ? s.kitchenOrders.filter((k) => k.id !== kotId)
+            : s.kitchenOrders,
+        };
+      });
+    },
+    [patch]
+  );
+
+  const sendPosOrderToKitchen = useCallback(
+    (input: {
+      posOrderId: string;
+      table: string;
+      items: { name: string; qty: number }[];
+    }) => {
+      if (!input.items.length) return null;
+
+      let kotId: string | null = null;
+
+      patch((s) => {
+        const openOrder = s.posOrders.find((o) => o.id === input.posOrderId && o.status === "open");
+        if (!openOrder) return s;
+
+        const now = new Date().toISOString();
+        const existingKotId = openOrder.kitchenOrderId;
+
+        if (existingKotId) {
+          kotId = existingKotId;
+          return {
+            ...s,
+            posOrders: s.posOrders.map((o) =>
+              o.id === input.posOrderId ? { ...o, sentToKitchenAt: o.sentToKitchenAt ?? now } : o
+            ),
+            kitchenOrders: s.kitchenOrders.map((k) =>
+              k.id === existingKotId
+                ? {
+                    ...k,
+                    table: input.table,
+                    items: input.items,
+                    orderRef: openOrder.orderRef,
+                    posOrderId: input.posOrderId,
+                  }
+                : k
+            ),
+          };
+        }
+
+        kotId = `KOT-${s.kotCounter}`;
+        return {
+          ...s,
+          kotCounter: s.kotCounter + 1,
+          posOrders: s.posOrders.map((o) =>
+            o.id === input.posOrderId
+              ? { ...o, kitchenOrderId: kotId!, sentToKitchenAt: now }
+              : o
+          ),
+          kitchenOrders: [
+            {
+              id: kotId!,
+              table: input.table,
+              items: input.items,
+              status: "new" as const,
+              priority: "normal" as const,
+              createdAt: now,
+              posOrderId: input.posOrderId,
+              orderRef: openOrder.orderRef,
+            },
+            ...s.kitchenOrders,
+          ],
+        };
+      });
+
+      return kotId;
+    },
+    [patch]
+  );
+
+  const finalizePosOrder = useCallback(
+    (input: {
+      posOrderId: string;
+      table: string;
+      items: { name: string; qty: number }[];
+      stockLines: { inventoryId: string; qty: number; name: string }[];
+      paymentLabel: string;
+      paymentMethod: string;
+      amountPaid: number;
+      total: number;
+      isCredit?: boolean;
+      creditCustomer?: string;
+    }) => {
+      if (input.items.length === 0 || input.total <= 0) return null;
+      if (input.isCredit) {
+        if (!input.creditCustomer?.trim()) return null;
+      } else if (input.amountPaid < input.total || input.amountPaid <= 0) {
+        return null;
+      }
+
+      const saleAmount = input.isCredit ? input.total : input.amountPaid;
+
+      let result: { transactionId: string; kotId: string; orderRef: string } | null = null;
+
+      patch((s) => {
+        const openOrder = s.posOrders.find((o) => o.id === input.posOrderId && o.status === "open");
+        if (!openOrder) return s;
+
+        const transactionId = `TX-${String(s.txCounter).padStart(4, "0")}`;
+        const existingKotId = openOrder.kitchenOrderId;
+        const kotId = existingKotId ?? `KOT-${s.kotCounter}`;
+        const orderRef = openOrder.orderRef;
+        const now = new Date().toISOString();
+        const date = today();
+
+        let inventory = s.inventory;
+        const stockMovements = [...s.stockMovements];
+
+        for (const line of input.stockLines) {
+          const item = inventory.find((i) => i.id === line.inventoryId);
+          if (!item) continue;
+          stockMovements.unshift({
+            id: uid("mov"),
+            itemId: line.inventoryId,
+            itemName: line.name,
+            type: "sale",
+            qty: line.qty,
+            note: `POS sale: ${line.qty}× ${line.name}`,
+            date,
+          });
+          inventory = inventory.map((i) =>
+            i.id === line.inventoryId
+              ? { ...i, stockOnHand: Math.max(0, i.stockOnHand - line.qty) }
+              : i
+          );
+        }
+
+        result = { transactionId, kotId, orderRef };
+
+        const kitchenOrders = existingKotId
+          ? s.kitchenOrders.map((k) =>
+              k.id === existingKotId
+                ? {
+                    ...k,
+                    table: input.table,
+                    items: input.items,
+                    transactionId,
+                    orderRef,
+                    posOrderId: input.posOrderId,
+                  }
+                : k
+            )
+          : [
+              {
+                id: kotId,
+                table: input.table,
+                items: input.items,
+                status: "new" as const,
+                priority: "normal" as const,
+                createdAt: now,
+                transactionId,
+                orderRef,
+                posOrderId: input.posOrderId,
+              },
+              ...s.kitchenOrders,
+            ];
+
+        return {
+          ...s,
+          txCounter: s.txCounter + 1,
+          kotCounter: existingKotId ? s.kotCounter : s.kotCounter + 1,
+          inventory,
+          stockMovements,
+          transactions: [
+            {
+              id: transactionId,
+              type: "sale" as const,
+              description: `POS ${input.table} — ${input.paymentLabel}`,
+              amount: saleAmount,
+              date,
+            },
+            ...s.transactions,
+          ],
+          posOrders: s.posOrders.map((o) =>
+            o.id === input.posOrderId
+              ? {
+                  ...o,
+                  status: "paid" as const,
+                  paidAt: now,
+                  transactionId,
+                  paymentMethod: input.paymentMethod,
+                  creditCustomer: input.creditCustomer?.trim() || undefined,
+                  amountPaid: input.amountPaid,
+                  kitchenOrderId: kotId,
+                }
+              : o
+          ),
+          kitchenOrders,
+        };
+      });
+
+      return result;
+    },
+    [patch]
+  );
+
   const updateKitchenStatus = useCallback(
     (id: string, status: KitchenOrder["status"]) => {
       patch((s) => ({
@@ -572,6 +924,114 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           tables: s.settings.tables.filter((t) => t.id !== id),
         },
       }));
+    },
+    [patch]
+  );
+
+  const addMenuCategory = useCallback(
+    (input: { name: string; imageUrl?: string }): { ok: true } | { ok: false; error: string } => {
+      const name = input.name.trim();
+      if (!name) return { ok: false, error: "Category name is required" };
+      const imageUrl = input.imageUrl?.trim() || undefined;
+      let result: { ok: true } | { ok: false; error: string } = { ok: false, error: "Duplicate category" };
+      patch((s) => {
+        const key = name.toLowerCase();
+        if (s.settings.menuCategories.some((c) => c.name.trim().toLowerCase() === key)) {
+          result = { ok: false, error: `Category “${name}” already exists` };
+          return s;
+        }
+        const maxOrder = s.settings.menuCategories.reduce((m, c) => Math.max(m, c.sortOrder), -1);
+        result = { ok: true };
+        return {
+          ...s,
+          settings: {
+            ...s.settings,
+            menuCategories: [
+              ...s.settings.menuCategories,
+              { id: uid("cat"), name, imageUrl, sortOrder: maxOrder + 1 },
+            ],
+          },
+        };
+      });
+      return result;
+    },
+    [patch]
+  );
+
+  const updateMenuCategory = useCallback(
+    (
+      id: string,
+      data: Partial<Pick<MenuCategoryDef, "name" | "imageUrl" | "sortOrder">>
+    ): { ok: true } | { ok: false; error: string } => {
+      let result: { ok: true } | { ok: false; error: string } = { ok: false, error: "Category not found" };
+      patch((s) => {
+        const current = s.settings.menuCategories.find((c) => c.id === id);
+        if (!current) return s;
+        const name = (data.name ?? current.name).trim();
+        if (!name) {
+          result = { ok: false, error: "Category name is required" };
+          return s;
+        }
+        const key = name.toLowerCase();
+        if (
+          s.settings.menuCategories.some(
+            (c) => c.id !== id && c.name.trim().toLowerCase() === key
+          )
+        ) {
+          result = { ok: false, error: `Category “${name}” already exists` };
+          return s;
+        }
+        const imageUrl =
+          data.imageUrl !== undefined ? data.imageUrl.trim() || undefined : current.imageUrl;
+        result = { ok: true };
+        return {
+          ...s,
+          settings: {
+            ...s.settings,
+            menuCategories: s.settings.menuCategories.map((c) =>
+              c.id === id
+                ? {
+                    ...c,
+                    name,
+                    imageUrl,
+                    sortOrder: data.sortOrder ?? c.sortOrder,
+                  }
+                : c
+            ),
+          },
+        };
+      });
+      return result;
+    },
+    [patch]
+  );
+
+  const removeMenuCategory = useCallback(
+    (id: string): { ok: true } | { ok: false; error: string } => {
+      let result: { ok: true } | { ok: false; error: string } = { ok: false, error: "Category not found" };
+      patch((s) => {
+        const cat = s.settings.menuCategories.find((c) => c.id === id);
+        if (!cat) return s;
+        const inUse = s.inventory.some(
+          (i) => i.category.trim().toLowerCase() === cat.name.trim().toLowerCase()
+        );
+        if (inUse) {
+          result = {
+            ok: false,
+            error: `Move or delete items in “${cat.name}” before removing this category`,
+          };
+          return s;
+        }
+        result = { ok: true };
+        return {
+          ...s,
+          settings: {
+            ...s.settings,
+            menuCategories: s.settings.menuCategories.filter((c) => c.id !== id),
+          },
+        };
+      });
+      return result;
     },
     [patch]
   );
@@ -705,7 +1165,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const value: StoreContextValue = {
     state: hydrated ? state : emptyState,
-    menuItems: hydrated ? menuItems : [],
+    menuItems,
     persist,
     addInventory,
     updateInventory,
@@ -722,8 +1182,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     updateParty,
     deleteParty,
     addKitchenOrder,
+    createPosOrder,
+    updatePosOrder,
+    cancelPosOrder,
+    sendPosOrderToKitchen,
+    finalizePosOrder,
     updateKitchenStatus,
     updateSettings,
+    addMenuCategory,
+    updateMenuCategory,
+    removeMenuCategory,
     addTable,
     removeTable,
     addStaff,

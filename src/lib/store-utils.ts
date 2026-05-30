@@ -1,11 +1,21 @@
-import type { InventoryItem, KitchenOrder, MenuItem, Transaction } from "./types";
+import type { InventoryItem, KitchenOrder, MenuCategoryDef, MenuItem, Transaction } from "./types";
+import { categoryImageByName } from "./menu-categories";
+import { ensureMenuCatalog } from "./default-menu";
 import { resolveMenuImage } from "./menu-images";
 
-export function menuFromInventory(inventory: InventoryItem[]): MenuItem[] {
-  return inventory
-    .filter((i) => i.type === "sellable" && i.sellingPrice > 0)
+export function menuFromInventory(
+  inventory: InventoryItem[],
+  menuCategories: MenuCategoryDef[] = []
+): MenuItem[] {
+  return ensureMenuCatalog(inventory)
+    .filter((i) => i.type === "sellable" && Number(i.sellingPrice) > 0)
     .map((i) => {
-      const visual = resolveMenuImage(i.id, i.category, i.imageUrl);
+      const visual = resolveMenuImage(
+        i.id,
+        i.category,
+        i.imageUrl,
+        categoryImageByName(menuCategories, i.category)
+      );
       return {
         id: i.id,
         name: i.name,

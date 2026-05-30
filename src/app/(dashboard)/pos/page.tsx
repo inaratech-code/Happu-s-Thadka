@@ -1,21 +1,25 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "@/lib/motion";
 import {
   Search,
-  Minus,
-  Plus,
   CreditCard,
-  Banknote,
-  Split,
   X,
   Receipt,
+  ClipboardList,
+  ListOrdered,
 } from "lucide-react";
 import { Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { MenuItemThumb } from "@/components/menu-item-thumb";
+import { PosOrderPanel } from "@/components/pos/pos-order-panel";
+import { PosPaymentModal, type PosPaymentMethod } from "@/components/pos/payment-modal";
 import { useStore } from "@/lib/store";
+import { openOrderForTable } from "@/lib/pos-orders";
+import type { PosOrderLine } from "@/lib/types";
 import { cn, formatCurrency } from "@/lib/utils";
 
 type CartItem = {
@@ -34,27 +38,152 @@ function calcDiscount(subtotal: number, type: "flat" | "percent", value: number)
   return Math.min(subtotal, value);
 }
 
-const fieldSm =
-  "h-8 rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] text-foreground text-sm focus-ring";
+function cartToLines(cart: CartItem[]): PosOrderLine[] {
+  return cart.map((c) => ({
+    inventoryId: c.id,
+    name: c.name,
+    price: c.price,
+    qty: c.qty,
+  }));
+}
 
 export default function POSPage() {
-  const { menuItems, state, addTransaction, addKitchenOrder, adjustStock } = useStore();
+  const searchParams = useSearchParams();
+  const tableFromUrl = searchParams.get("table");
+
+  const {
+    menuItems,
+    state,
+    createPosOrder,
+    updatePosOrder,
+    cancelPosOrder,
+    sendPosOrderToKitchen,
+    finalizePosOrder,
+  } = useStore();
   const tables = state.settings.tables;
 
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [selectedTable, setSelectedTable] = useState("");
   const [customTable, setCustomTable] = useState("Walk-in");
+  const [showPayment, setShowPayment] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "split">("card");
+  const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>("cash");
+  const [amountPaid, setAmountPaid] = useState(0);
+  const [creditCustomer, setCreditCustomer] = useState("");
+  const [orderRef, setOrderRef] = useState("");
   const [discountType, setDiscountType] = useState<"flat" | "percent">("flat");
   const [discountValue, setDiscountValue] = useState("");
+  const [showOrderPanel, setShowOrderPanel] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [kitchenNotice, setKitchenNotice] = useState("");
+
+  const skipPersistRef = useRef(false);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const categories = useMemo(
     () => [...new Set(menuItems.map((m) => m.category))].filter(Boolean),
     [menuItems]
   );
+
+  const defaultTable =
+    tableFromUrl ||
+    (tables.length > 0 ? selectedTable || tables[0]?.name : customTable) ||
+    "Walk-in";
+
+  const tableLabel = tables.length > 0 ? selectedTable || tables[0]?.name || defaultTable : customTable;
+
+  const activeOrder = useMemo(
+    () =>
+      activeOrderId
+        ? state.posOrders.find((o) => o.id === activeOrderId && o.status === "open")
+        : openOrderForTable(state.posOrders, tableLabel),
+    [activeOrderId, state.posOrders, tableLabel]
+  );
+
+  const hasOpenOrder = Boolean(activeOrder);
+  const isPending = !hasOpenOrder;
+  const sentToKitchen = Boolean(activeOrder?.sentToKitchenAt);
+  const cartCount = cart.reduce((s, c) => s + c.qty, 0);
+  const hasPanelContent = cart.length > 0 || hasOpenOrder;
+
+  useEffect(() => {
+    if (hasOpenOrder) setShowOrderPanel(true);
+  }, [hasOpenOrder]);
+
+  useEffect(() => {
+    if (tableFromUrl && tables.some((t) => t.name === tableFromUrl)) {
+      setSelectedTable(tableFromUrl);
+    } else if (tableFromUrl && tables.length === 0) {
+      setCustomTable(tableFromUrl);
+    }
+  }, [tableFromUrl, tables]);
+
+  const linesToCart = useCallback(
+    (lines: PosOrderLine[]): CartItem[] =>
+      lines.map((l) => {
+        const m = menuItems.find((x) => x.id === l.inventoryId);
+        return {
+          id: l.inventoryId,
+          name: l.name,
+          price: l.price,
+          qty: l.qty,
+          emoji: m?.emoji ?? "🍽",
+          imageUrl: m?.imageUrl,
+          categoryImageUrl: m?.categoryImageUrl,
+        };
+      }),
+    [menuItems]
+  );
+
+  useEffect(() => {
+    const existing = openOrderForTable(state.posOrders, tableLabel);
+    if (existing && existing.id === activeOrderId) return;
+
+    skipPersistRef.current = true;
+    if (existing) {
+      setActiveOrderId(existing.id);
+      setCart(linesToCart(existing.items));
+      setDiscountType(existing.discountType);
+      setDiscountValue(existing.discountValue > 0 ? String(existing.discountValue) : "");
+    } else {
+      setActiveOrderId(null);
+      setCart([]);
+      setDiscountType("flat");
+      setDiscountValue("");
+    }
+    queueMicrotask(() => {
+      skipPersistRef.current = false;
+    });
+  }, [tableLabel, state.posOrders, activeOrderId, linesToCart]);
+
+  useEffect(() => {
+    if (!activeOrder?.id || skipPersistRef.current) return;
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      updatePosOrder(activeOrder.id, {
+        items: cartToLines(cart),
+        discountType,
+        discountValue: parseFloat(discountValue) || 0,
+        table: tableLabel,
+      });
+    }, 250);
+    return () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    };
+  }, [cart, discountType, discountValue, activeOrder?.id, tableLabel, updatePosOrder]);
+
+  const openByTable = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const o of state.posOrders) {
+      if (o.status !== "open") continue;
+      const n = o.items.reduce((s, l) => s + l.qty, 0);
+      map.set(o.table, (map.get(o.table) ?? 0) + n);
+    }
+    return map;
+  }, [state.posOrders]);
 
   const filtered = menuItems.filter((m) => {
     const matchCat = category === "All" || m.category === category;
@@ -62,9 +191,8 @@ export default function POSPage() {
     return matchCat && matchSearch;
   });
 
-  const tableLabel = tables.length > 0 ? selectedTable || tables[0]?.name : customTable;
-
   const addToCart = (item: (typeof menuItems)[0]) => {
+    setShowOrderPanel(true);
     setCart((prev) => {
       const existing = prev.find((c) => c.id === item.id);
       if (existing) {
@@ -93,6 +221,13 @@ export default function POSPage() {
     );
   };
 
+  const clearCart = () => {
+    if (activeOrderId) cancelPosOrder(activeOrderId);
+    setActiveOrderId(null);
+    setCart([]);
+    setDiscountValue("");
+  };
+
   const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0);
   const discountAmount = calcDiscount(
     subtotal,
@@ -101,90 +236,205 @@ export default function POSPage() {
   );
   const total = Math.max(0, subtotal - discountAmount);
 
-  const completePayment = (method: "cash" | "card" | "split") => {
-    if (!cart.length || total <= 0) return;
-    setPaymentMethod(method);
+  const paymentMethodLabel: Record<PosPaymentMethod, string> = {
+    cash: "Cash",
+    qr_cash: "QR + Cash",
+    qr: "QR Payment",
+    credit: "Credit",
+  };
+
+  const sendToKitchen = () => {
+    if (!activeOrder?.id || !cart.length) return;
+    const kotId = sendPosOrderToKitchen({
+      posOrderId: activeOrder.id,
+      table: tableLabel,
+      items: cart.map((c) => ({ name: c.name, qty: c.qty })),
+    });
+    if (kotId) {
+      setKitchenNotice(sentToKitchen ? "Kitchen ticket updated" : "Sent to kitchen");
+      window.setTimeout(() => setKitchenNotice(""), 3000);
+    }
+  };
+
+  /** ChiyaGadi-style: pending cart → Create Order → kitchen + unpaid order */
+  const handleCreateOrder = () => {
+    if (!cart.length) return;
+    if (openOrderForTable(state.posOrders, tableLabel)) {
+      setKitchenNotice("This table already has an open order — open it from Orders.");
+      window.setTimeout(() => setKitchenNotice(""), 4000);
+      return;
+    }
+    setCreating(true);
+    skipPersistRef.current = true;
+    const order = createPosOrder(tableLabel);
+    const lines = cartToLines(cart);
+    const kitchenItems = cart.map((c) => ({ name: c.name, qty: c.qty }));
+    updatePosOrder(order.id, {
+      items: lines,
+      discountType,
+      discountValue: parseFloat(discountValue) || 0,
+      table: tableLabel,
+    });
+    sendPosOrderToKitchen({
+      posOrderId: order.id,
+      table: tableLabel,
+      items: kitchenItems,
+    });
+    setActiveOrderId(order.id);
+    setCreating(false);
+    queueMicrotask(() => {
+      skipPersistRef.current = false;
+    });
+    setKitchenNotice("Order created · sent to kitchen");
+    window.setTimeout(() => setKitchenNotice(""), 3000);
+  };
+
+  const completePayment = (
+    method: PosPaymentMethod,
+    paid: number,
+    customerName?: string
+  ) => {
+    if (!cart.length || total <= 0 || !activeOrder?.id) return;
+    const isCredit = method === "credit";
+    if (!isCredit && paid < total) return;
 
     const discountNote =
       discountAmount > 0
         ? ` (discount ${discountType === "percent" ? `${discountValue}%` : formatCurrency(parseFloat(discountValue) || 0)})`
         : "";
+    const creditNote = isCredit && customerName ? ` — ${customerName}` : "";
 
-    addTransaction({
-      type: "sale",
-      description: `POS ${tableLabel} — ${method}${discountNote}`,
-      amount: total,
-    });
-
-    addKitchenOrder({
+    const result = finalizePosOrder({
+      posOrderId: activeOrder.id,
       table: tableLabel,
       items: cart.map((c) => ({ name: c.name, qty: c.qty })),
-      status: "new",
-      priority: "normal",
+      stockLines: cart
+        .filter((c) => state.inventory.some((i) => i.id === c.id))
+        .map((c) => ({ inventoryId: c.id, qty: c.qty, name: c.name })),
+      paymentLabel: `${paymentMethodLabel[method]}${creditNote}${discountNote}`,
+      paymentMethod: method,
+      amountPaid: paid,
+      total,
+      isCredit,
+      creditCustomer: customerName,
     });
 
-    cart.forEach((c) => {
-      const inv = state.inventory.find((i) => i.id === c.id);
-      if (inv) {
-        adjustStock(c.id, -c.qty, `POS sale: ${c.qty}× ${c.name}`, "sale");
-      }
-    });
+    if (!result) return;
 
+    setPaymentMethod(method);
+    setAmountPaid(isCredit ? 0 : paid);
+    setCreditCustomer(customerName ?? "");
+    setOrderRef(result.orderRef);
+    setShowPayment(false);
     setShowReceipt(true);
   };
 
   const resetOrder = () => {
     setShowReceipt(false);
+    setShowPayment(false);
     setCart([]);
     setDiscountValue("");
+    setAmountPaid(0);
+    setCreditCustomer("");
+    setOrderRef("");
+    setActiveOrderId(null);
   };
 
+  const openOrderCount = state.posOrders.filter((o) => o.status === "open").length;
+
+  useEffect(() => {
+    const open = showOrderPanel || showPayment || showReceipt;
+    document.documentElement.classList.toggle("pos-sheet-open", open);
+    return () => document.documentElement.classList.remove("pos-sheet-open");
+  }, [showOrderPanel, showPayment, showReceipt]);
+
   return (
-    <div className="flex flex-col gap-4 w-full min-w-0 lg:flex-row lg:min-h-[calc(100dvh-8.5rem)]">
-      <div className="flex-1 flex flex-col min-w-0 min-h-[min(50vh,28rem)] lg:min-h-0">
-        <div className="flex items-center gap-3 mb-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+    <div className="flex flex-col gap-3 w-full max-w-full min-w-0 overflow-x-hidden lg:flex-1 lg:min-h-0 lg:flex-row lg:gap-4 lg:min-h-[calc(100dvh-8.5rem)]">
+      <div className="flex flex-col min-w-0 max-w-full overflow-x-hidden lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
+        <div className="flex items-stretch gap-2 mb-2 min-w-0 max-w-full">
+          <div className="relative flex-1 min-w-0 lg:max-w-xl">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
             <input
+              id="pos-menu-search"
+              name="menuSearch"
+              type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search menu..."
-              className="field-input pl-9 pr-3"
+              className="field-input h-11 sm:h-12 pl-9 sm:pl-10 pr-3 text-base min-w-0"
+              autoComplete="off"
             />
           </div>
-          {tables.length > 0 ? (
-            <select
-              value={selectedTable || tables[0]?.name}
-              onChange={(e) => setSelectedTable(e.target.value)}
-              className="field-select"
-            >
-              {tables.map((t) => (
-                <option key={t.id} value={t.name}>
+          <Link
+            href="/pos/orders"
+            aria-label={openOrderCount > 0 ? `Orders, ${openOrderCount} open` : "Orders"}
+            className={cn(
+              "inline-flex shrink-0 items-center justify-center gap-1.5 sm:gap-2.5 h-11 sm:h-12 min-w-11 sm:min-w-[7.5rem] px-3 sm:px-5 rounded-xl text-sm sm:text-base font-semibold border-2 transition-colors",
+              openOrderCount > 0
+                ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90"
+                : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--chip-hover)]"
+            )}
+          >
+            <ClipboardList className="h-5 w-5 sm:h-6 sm:w-6 shrink-0" />
+            <span className="hidden sm:inline">Orders</span>
+            {openOrderCount > 0 && (
+              <span className="inline-flex h-6 sm:h-7 min-w-6 sm:min-w-7 items-center justify-center rounded-full bg-[var(--primary-foreground)]/20 text-xs sm:text-sm font-bold tabular-nums px-1 sm:px-1.5">
+                {openOrderCount}
+              </span>
+            )}
+          </Link>
+        </div>
+        {tables.length > 0 ? (
+          <div className="flex gap-1.5 w-full min-w-0 max-w-full mb-2 overflow-x-auto scrollbar-none pb-0.5 touch-pan-x">
+            {tables.map((t) => {
+              const active = tableLabel === t.name;
+              const qty = openByTable.get(t.name) ?? 0;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setSelectedTable(t.name)}
+                    className={cn(
+                      "chip-btn h-8 px-3 rounded-lg text-xs font-medium relative shrink-0 whitespace-nowrap",
+                      active ? "chip-btn-active" : "text-muted-foreground"
+                    )}
+                >
                   {t.name}
-                </option>
-              ))}
-            </select>
-          ) : (
+                  {qty > 0 && (
+                    <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--primary)] text-[10px] font-bold text-[var(--primary-foreground)] px-1">
+                      {qty}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mb-2 w-full min-w-0 max-w-full">
             <input
+              id="pos-table-name"
+              name="tableName"
               value={customTable}
               onChange={(e) => setCustomTable(e.target.value)}
               placeholder="Table / customer"
-              className="field-input w-36"
+              className="field-input w-full min-w-0 h-9 text-sm"
+              autoComplete="off"
             />
-          )}
-        </div>
+          </div>
+        )}
+        {kitchenNotice && (
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 -mt-2 mb-1">{kitchenNotice}</p>
+        )}
 
-        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2 scrollbar-none">
+        <div className="flex gap-1.5 w-full min-w-0 max-w-full overflow-x-auto pb-2 mb-2 scrollbar-none touch-pan-x">
           {["All", ...categories].map((cat) => (
             <button
               key={cat}
               type="button"
               onClick={() => setCategory(cat)}
               className={cn(
-                "chip-btn h-8 px-3 rounded-lg text-xs font-medium whitespace-nowrap",
-                category === cat
-                  ? "chip-btn-active"
-                  : "text-muted-foreground"
+                "chip-btn h-8 px-3 rounded-lg text-xs font-medium whitespace-nowrap shrink-0",
+                category === cat ? "chip-btn-active" : "text-muted-foreground"
               )}
             >
               {cat}
@@ -199,162 +449,85 @@ export default function POSPage() {
             </p>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 content-start">
-            {filtered.map((item) => (
+          <div className="pos-menu-grid min-w-0 max-w-full mobile-nav-pad lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-y-contain">
+            {filtered.map((item, index) => (
               <motion.button
                 key={item.id}
                 type="button"
-                whileTap={{ scale: 0.96 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => addToCart(item)}
-                className="surface-card-interactive text-left p-3"
+                className="surface-card-interactive text-left p-2 sm:p-3 min-w-0 w-full overflow-hidden flex flex-col"
               >
                 <MenuItemThumb
                   name={item.name}
                   emoji={item.emoji}
                   imageUrl={item.imageUrl}
                   categoryImageUrl={item.categoryImageUrl}
-                  className="mb-2"
+                  className="mb-1.5 sm:mb-2 w-full"
+                  priority={index < 4}
                 />
-                <p className="text-sm font-medium leading-tight text-foreground">{item.name}</p>
-                <p className="text-xs text-price tabular-nums mt-1 font-semibold">
+                <p className="text-xs sm:text-sm font-medium leading-tight text-foreground line-clamp-2">
+                  {item.name}
+                </p>
+                <p className="text-[11px] sm:text-xs text-price tabular-nums mt-0.5 sm:mt-1 font-semibold">
                   {formatCurrency(item.price)}
                 </p>
               </motion.button>
             ))}
           </div>
         )}
+
+        {cartCount > 0 && !showOrderPanel && hasPanelContent && (
+          <Button
+            type="button"
+            className="fixed right-4 z-30 shadow-lg mobile-fab-bottom lg:bottom-6"
+            onClick={() => setShowOrderPanel(true)}
+          >
+            <ListOrdered className="h-4 w-4" />
+            View Order ({cartCount})
+          </Button>
+        )}
       </div>
 
-      <div className="w-full min-w-0 lg:w-[360px] xl:w-[400px] shrink-0 flex flex-col surface-card overflow-hidden max-h-[min(70dvh,32rem)] lg:max-h-none">
-        <div className="panel-header px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-foreground">{tableLabel}</p>
-            <p className="text-[11px] text-muted-foreground">{cart.length} items in cart</p>
-          </div>
-          {cart.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setCart([])}
-              className="text-xs text-muted-foreground hover:text-red-500 dark:hover:text-red-400"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[100px] bg-[var(--surface)]">
-          {cart.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Tap items to add</p>
-          ) : (
-            cart.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-2 rounded-lg panel-row p-2.5"
-              >
-                <MenuItemThumb
-                  name={item.name}
-                  emoji={item.emoji}
-                  imageUrl={item.imageUrl}
-                  categoryImageUrl={item.categoryImageUrl}
-                  size="sm"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate text-foreground">{item.name}</p>
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {formatCurrency(item.price)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => updateQty(item.id, -1)}
-                    className="control-btn h-7 w-7 rounded-md"
-                  >
-                    <Minus className="h-3 w-3" />
-                  </button>
-                  <span className="w-6 text-center text-sm tabular-nums font-medium text-foreground">
-                    {item.qty}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => updateQty(item.id, 1)}
-                    className="control-btn h-7 w-7 rounded-md"
-                  >
-                    <Plus className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="panel-footer p-4 space-y-3">
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Subtotal</span>
-              <span className="tabular-nums text-foreground">{formatCurrency(subtotal)}</span>
-            </div>
-
-            <div className="space-y-1.5">
-              <span className="text-xs text-muted-foreground">Discount</span>
-              <div className="flex gap-2">
-                <select
-                  value={discountType}
-                  onChange={(e) => setDiscountType(e.target.value as "flat" | "percent")}
-                  className={cn(fieldSm, "px-2 text-xs w-auto")}
-                >
-                  <option value="flat">₹ Amount</option>
-                  <option value="percent">% Percent</option>
-                </select>
-                <input
-                  type="number"
-                  min={0}
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  placeholder="0"
-                  className={cn(fieldSm, "flex-1 px-2 tabular-nums")}
-                />
-              </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 text-xs">
-                  <span>Discount applied</span>
-                  <span className="tabular-nums">−{formatCurrency(discountAmount)}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-between font-semibold text-base pt-1 border-t border-[var(--border)] text-foreground">
-              <span>Total</span>
-              <span className="tabular-nums text-price">{formatCurrency(total)}</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!cart.length}
-              onClick={() => completePayment("split")}
-            >
-              <Split className="h-3.5 w-3.5" />
-              Split
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!cart.length}
-              onClick={() => completePayment("cash")}
-            >
-              <Banknote className="h-3.5 w-3.5" />
-              Cash
-            </Button>
-            <Button size="sm" disabled={!cart.length} onClick={() => completePayment("card")}>
-              <CreditCard className="h-3.5 w-3.5" />
-              Pay
-            </Button>
-          </div>
-        </div>
+      <div
+        className={cn(
+          !hasPanelContent && "hidden",
+          hasPanelContent && !showOrderPanel && "hidden lg:flex lg:flex-col",
+          hasPanelContent && showOrderPanel && "flex flex-col"
+        )}
+      >
+        <PosOrderPanel
+          open={hasPanelContent}
+          onClose={() => setShowOrderPanel(false)}
+          tableLabel={tableLabel}
+          orderRef={activeOrder?.orderRef ?? null}
+          items={cart}
+          subtotal={subtotal}
+          discountType={discountType}
+          discountValue={discountValue}
+          onDiscountTypeChange={setDiscountType}
+          onDiscountValueChange={setDiscountValue}
+          discountAmount={discountAmount}
+          total={total}
+          onUpdateQty={updateQty}
+          isPending={isPending}
+          sentToKitchen={sentToKitchen}
+          onCreateOrder={handleCreateOrder}
+          onSendKitchen={sendToKitchen}
+          onPay={() => setShowPayment(true)}
+          creating={creating}
+        />
       </div>
+
+      <PosPaymentModal
+        open={showPayment}
+        onClose={() => setShowPayment(false)}
+        items={cart.map((c) => ({ id: c.id, name: c.name, qty: c.qty, price: c.price }))}
+        subtotal={subtotal}
+        discountAmount={discountAmount}
+        total={total}
+        onConfirm={(method, paid, customer) => completePayment(method, paid, customer)}
+      />
 
       <AnimatePresence>
         {showReceipt && (
@@ -371,13 +544,13 @@ export default function POSPage() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="modal-panel fixed right-0 top-0 bottom-0 z-50 w-full max-w-sm border-l shadow-2xl flex flex-col"
+              className="modal-panel fixed right-0 top-0 bottom-0 z-[60] w-full max-w-sm border-l shadow-2xl flex flex-col safe-top safe-bottom"
             >
               <div className="panel-header flex items-center justify-between p-4">
                 <div className="flex items-center gap-2">
                   <Receipt className="h-4 w-4 text-price" />
                   <span className="font-semibold text-foreground">Receipt</span>
-                  <Badge variant="success">{paymentMethod}</Badge>
+                  <Badge variant="success">{paymentMethodLabel[paymentMethod]}</Badge>
                 </div>
                 <button type="button" onClick={resetOrder}>
                   <X className="h-5 w-5 text-muted-foreground" />
@@ -387,6 +560,12 @@ export default function POSPage() {
                 <div className="text-center">
                   <p className="font-bold text-base">{state.settings.restaurantName.toUpperCase()}</p>
                   <p className="text-xs text-muted-foreground mt-1">{state.settings.location}</p>
+                  {orderRef && (
+                    <p className="text-[11px] text-muted-foreground mt-2 tabular-nums">{orderRef}</p>
+                  )}
+                  {paymentMethod === "credit" && creditCustomer && (
+                    <p className="text-xs mt-1">Credit: {creditCustomer}</p>
+                  )}
                 </div>
                 <div className="border-t border-dashed border-dashed-theme pt-3 space-y-1.5">
                   {cart.map((item) => (
@@ -415,6 +594,12 @@ export default function POSPage() {
                     <span>TOTAL</span>
                     <span>{formatCurrency(total)}</span>
                   </div>
+                  {paymentMethod !== "credit" && amountPaid > 0 && amountPaid < total && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Paid</span>
+                      <span className="tabular-nums">{formatCurrency(amountPaid)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="panel-footer p-4">

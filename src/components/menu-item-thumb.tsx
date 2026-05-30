@@ -11,6 +11,8 @@ type Props = {
   categoryImageUrl?: string;
   size?: "sm" | "md";
   className?: string;
+  /** Preload when this thumb is likely LCP (first visible menu tiles on POS) */
+  priority?: boolean;
 };
 
 export function MenuItemThumb({
@@ -20,6 +22,7 @@ export function MenuItemThumb({
   categoryImageUrl,
   size = "md",
   className,
+  priority = false,
 }: Props) {
   const [src, setSrc] = useState<string | undefined>(imageUrl ?? categoryImageUrl);
 
@@ -34,7 +37,9 @@ export function MenuItemThumb({
       <span
         className={cn(
           "flex items-center justify-center select-none",
-          size === "sm" ? "text-lg h-8 w-8" : "text-2xl h-14 w-full",
+          size === "sm"
+            ? "text-lg h-8 w-8"
+            : "text-2xl aspect-[5/4] w-full max-h-[5.25rem] sm:max-h-[6rem] flex items-center justify-center",
           className
         )}
         aria-hidden
@@ -44,7 +49,8 @@ export function MenuItemThumb({
     );
   }
 
-  const dim = size === "sm" ? "h-8 w-8" : "h-14 w-full";
+  const dim =
+    size === "sm" ? "h-8 w-8" : "aspect-[5/4] w-full max-h-[5.25rem] sm:max-h-[6rem]";
 
   return (
     <div
@@ -59,6 +65,7 @@ export function MenuItemThumb({
         alt={name}
         fill
         unoptimized
+        priority={priority}
         sizes={size === "sm" ? "32px" : "120px"}
         className="object-cover"
         onError={() => {

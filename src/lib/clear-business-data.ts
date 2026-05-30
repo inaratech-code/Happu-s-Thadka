@@ -10,8 +10,10 @@ export function buildClearedAppState(current: AppState): AppState {
       restaurantName: current.settings.restaurantName,
       location: current.settings.location,
       tables: [],
+      menuCategories: [],
     },
     inventory: [],
+    posOrders: [],
     kitchenOrders: [],
     transactions: [],
     ledgerEntries: [],
@@ -20,5 +22,6 @@ export function buildClearedAppState(current: AppState): AppState {
     parties: DEFAULT_PARTIES.map((p) => ({ ...p })),
     kotCounter: 1000,
     txCounter: 1,
+    orderCounter: 1,
   };
 }

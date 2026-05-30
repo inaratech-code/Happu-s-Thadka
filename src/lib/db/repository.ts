@@ -1,4 +1,5 @@
 import { needsMenuCatalogPersist } from "@/lib/default-menu";
+import { needsMenuCategoriesPersist } from "@/lib/menu-categories";
 import { appStateToDbPayload, mapInventory, rowsToAppState, type DbRows } from "@/lib/db/mappers";
 import type { AppState } from "@/lib/types";
 import { DEFAULT_RESTAURANT_ID } from "@/lib/env";
@@ -7,6 +8,7 @@ import { setRestaurantScope, withRestaurantScope } from "@/lib/db/scope";
 import type { PoolClient } from "@neondatabase/serverless";
 
 const CHILD_TABLES = [
+  "pos_orders",
   "kitchen_orders",
   "stock_movements",
   "ledger_entries",
@@ -16,6 +18,7 @@ const CHILD_TABLES = [
   "financial_accounts",
   "staff",
   "restaurant_tables",
+  "menu_categories",
 ] as const;
 
 type StaffRow = DbRows["staff"][number];
@@ -25,7 +28,7 @@ export async function loadAppStateFromDb(
 ): Promise<AppState> {
   return withRestaurantScope(restaurantId, async (client) => {
     const restaurantResult = await client.query<NonNullable<DbRows["restaurant"]>>(
-      `select id, name, location, kot_counter, tx_counter from restaurants where id = $1`,
+      `select id, name, location, kot_counter, tx_counter, order_counter from restaurants where id = $1`,
       [restaurantId]
     );
 
@@ -36,6 +39,15 @@ export async function loadAppStateFromDb(
 
     const tablesRes = await client.query<{ id: string; name: string }>(
       "select id, name from restaurant_tables where restaurant_id = $1",
+      [restaurantId]
+    );
+    const menuCatRes = await client.query<{
+      id: string;
+      name: string;
+      image_url: string | null;
+      sort_order: number;
+    }>(
+      "select id, name, image_url, sort_order from menu_categories where restaurant_id = $1 order by sort_order, name",
       [restaurantId]
     );
     const staffRes = await client.query<StaffRow>(
@@ -70,6 +82,10 @@ export async function loadAppStateFromDb(
       "select * from kitchen_orders where restaurant_id = $1",
       [restaurantId]
     );
+    const posRes = await client.query(
+      "select * from pos_orders where restaurant_id = $1",
+      [restaurantId]
+    );
 
     const inventoryRows = invRes.rows as Record<string, unknown>[];
     const rawInventory = inventoryRows.map(mapInventory);
@@ -77,6 +93,7 @@ export async function loadAppStateFromDb(
     const rows: DbRows = {
       restaurant,
       tables: tablesRes.rows,
+      menu_categories: menuCatRes.rows,
       staff: staffRes.rows,
       inventory: inventoryRows,
       transactions: txRes.rows as Record<string, unknown>[],
@@ -85,11 +102,15 @@ export async function loadAppStateFromDb(
       ledger_entries: ledRes.rows as Record<string, unknown>[],
       stock_movements: movRes.rows as Record<string, unknown>[],
       kitchen_orders: kotRes.rows as Record<string, unknown>[],
+      pos_orders: posRes.rows as Record<string, unknown>[],
     };
 
     const state = rowsToAppState(rows);
 
-    if (needsMenuCatalogPersist(rawInventory)) {
+    if (
+      needsMenuCatalogPersist(rawInventory) ||
+      needsMenuCategoriesPersist(state.settings.menuCategories, state.inventory)
+    ) {
       await saveAppStateToDb(state, restaurantId);
     }
 
@@ -109,13 +130,14 @@ export async function saveAppStateToDb(
     await setRestaurantScope(client, restaurantId);
 
     await client.query(
-      `insert into restaurants (id, name, location, kot_counter, tx_counter, updated_at)
-       values ($1, $2, $3, $4, $5, now())
+      `insert into restaurants (id, name, location, kot_counter, tx_counter, order_counter, updated_at)
+       values ($1, $2, $3, $4, $5, $6, now())
        on conflict (id) do update set
          name = excluded.name,
          location = excluded.location,
          kot_counter = excluded.kot_counter,
          tx_counter = excluded.tx_counter,
+         order_counter = excluded.order_counter,
          updated_at = now()`,
       [
         payload.restaurant.id,
@@ -123,6 +145,7 @@ export async function saveAppStateToDb(
         payload.restaurant.location,
         payload.restaurant.kot_counter,
         payload.restaurant.tx_counter,
+        payload.restaurant.order_counter,
       ]
     );
 
@@ -149,6 +172,14 @@ async function insertChildRows(
     await client.query(
       "insert into restaurant_tables (id, restaurant_id, name) values ($1, $2, $3)",
       [row.id, row.restaurant_id, row.name]
+    );
+  }
+
+  for (const row of payload.menu_categories) {
+    await client.query(
+      `insert into menu_categories (id, restaurant_id, name, image_url, sort_order)
+       values ($1, $2, $3, $4, $5)`,
+      [row.id, row.restaurant_id, row.name, row.image_url, row.sort_order]
     );
   }
 
@@ -261,10 +292,41 @@ async function insertChildRows(
     );
   }
 
+  for (const row of payload.pos_orders) {
+    await client.query(
+      `insert into pos_orders (
+        id, restaurant_id, order_ref, table_name, items, status,
+        discount_type, discount_value, created_at, paid_at,
+        transaction_id, payment_method, credit_customer, amount_paid,
+        kitchen_order_id, sent_to_kitchen_at
+      ) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      [
+        row.id,
+        row.restaurant_id,
+        row.order_ref,
+        row.table_name,
+        JSON.stringify(row.items),
+        row.status,
+        row.discount_type,
+        row.discount_value,
+        row.created_at,
+        row.paid_at,
+        row.transaction_id,
+        row.payment_method,
+        row.credit_customer,
+        row.amount_paid,
+        row.kitchen_order_id,
+        row.sent_to_kitchen_at,
+      ]
+    );
+  }
+
   for (const row of payload.kitchen_orders) {
     await client.query(
-      `insert into kitchen_orders (id, restaurant_id, table_name, items, status, priority, created_at)
-       values ($1, $2, $3, $4::jsonb, $5, $6, $7)`,
+      `insert into kitchen_orders (
+        id, restaurant_id, table_name, items, status, priority, created_at,
+        transaction_id, order_ref, pos_order_id
+      ) values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10)`,
       [
         row.id,
         row.restaurant_id,
@@ -273,6 +335,9 @@ async function insertChildRows(
         row.status,
         row.priority,
         row.created_at,
+        row.transaction_id,
+        row.order_ref,
+        row.pos_order_id,
       ]
     );
   }

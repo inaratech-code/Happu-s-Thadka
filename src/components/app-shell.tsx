@@ -27,7 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const usesRemoteData = isRemoteDataSource();
 
   return (
-    <div className="noise-bg relative min-h-screen flex">
+    <div className="noise-bg relative min-h-screen flex min-w-0 max-w-full overflow-x-hidden">
       <div className="ambient-glow ambient-glow-amber" />
       <div className="ambient-glow ambient-glow-orange" />
 
@@ -68,12 +68,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-screen relative z-10 lg:pl-[15.75rem]">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0 max-w-full overflow-x-hidden relative z-10 lg:pl-[15.75rem]">
         {/* Top bar */}
-        <header className="app-titlebar sticky top-0 z-20 flex items-center gap-2 sm:gap-3 h-14 px-3 sm:px-4 lg:px-6 border-b border-[var(--border)] bg-[var(--header-bg)] backdrop-blur-md safe-top">
+        <header className="app-titlebar sticky top-0 z-20 flex items-center gap-1.5 sm:gap-3 h-14 px-2 sm:px-4 lg:px-6 border-b border-[var(--border)] bg-[var(--header-bg)] backdrop-blur-md safe-top">
           <button
             onClick={() => setMobileOpen(true)}
-            className="lg:hidden p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[var(--nav-hover)]"
+            className="lg:hidden p-2 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[var(--nav-hover)] shrink-0"
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
@@ -82,7 +82,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <CommandPalette />
 
           {session ? (
-            <div className="flex md:hidden items-center gap-2 min-w-0 max-w-[45vw]">
+            <div className="flex md:hidden items-center gap-1.5 min-w-0 max-w-[38vw] sm:max-w-[45vw]">
               <LiveStatusDot online={online} size="md" />
               <div className="min-w-0 leading-tight">
                 <p className="text-xs font-semibold truncate">{session.name}</p>
@@ -104,22 +104,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex-1" />
 
-          <ThemeToggle />
+          <div className="hidden sm:block shrink-0">
+            <ThemeToggle />
+          </div>
 
           <button
             type="button"
             onClick={() => void sync()}
             disabled={syncing}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--nav-hover)] transition-colors disabled:opacity-60"
+            className="flex shrink-0 items-center justify-center h-8 w-8 sm:w-auto sm:px-2.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--nav-hover)] transition-colors disabled:opacity-60"
             title="Reload data and refresh the page"
             aria-label="Sync and refresh"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
-            <span className="hidden sm:inline">{syncing ? "Syncing…" : "Sync"}</span>
+            <span className="hidden sm:inline ml-1.5">{syncing ? "Syncing…" : "Sync"}</span>
           </button>
 
           <button
-            className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[var(--nav-hover)] transition-colors"
+            className="relative hidden sm:flex p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[var(--nav-hover)] transition-colors shrink-0"
             aria-label="View notifications"
           >
             <Bell className="h-4 w-4" />
@@ -169,8 +171,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <main
           className={cn(
-            "flex-1 min-w-0 overflow-x-hidden p-3 sm:p-4 lg:p-6",
-            "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+            "flex flex-1 flex-col min-w-0 min-h-0 overflow-x-hidden max-lg:overflow-y-auto p-3 sm:p-4 lg:p-6",
+            "pb-[calc(var(--mobile-bottom-nav-height)+env(safe-area-inset-bottom)+0.5rem))] lg:pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
           )}
         >
           {children}

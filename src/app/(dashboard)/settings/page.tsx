@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Plus, Trash2, UtensilsCrossed } from "lucide-react";
 import { PageHeader, Input } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { ThemeSegmented } from "@/components/theme-toggle";
@@ -55,6 +56,21 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex flex-col gap-5 min-w-0">
+          <Link
+            href="/settings/menu"
+            className="surface-card p-5 flex items-center gap-3 hover:bg-[var(--chip-hover)] transition-colors"
+          >
+            <div className="h-10 w-10 rounded-lg bg-[var(--primary)]/15 flex items-center justify-center shrink-0">
+              <UtensilsCrossed className="h-5 w-5 text-[var(--primary)]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">Menu catalog</p>
+              <p className="text-xs text-muted-foreground">
+                Categories, item images, and POS menu items
+              </p>
+            </div>
+          </Link>
+
           <div className="surface-card p-5 space-y-4 flex-1 min-h-[280px] flex flex-col">
             <h3 className="text-sm font-semibold">Tables (for POS)</h3>
             <p className="text-xs text-muted-foreground">

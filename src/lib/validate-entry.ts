@@ -18,6 +18,27 @@ export function parseNonZeroAmount(value: string): number | null {
   return n;
 }
 
+/** Optional image URL for menu items / categories (https or site path). */
+export function validateImageUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith("/")) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol === "http:" || url.protocol === "https:") return trimmed;
+  } catch {
+    /* invalid */
+  }
+  return undefined;
+}
+
+export function imageUrlFieldError(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return null;
+  if (validateImageUrl(trimmed)) return null;
+  return "Use a full https:// link or a path starting with /";
+}
+
 export function validateInventoryItem(
   item: Omit<InventoryItem, "id">,
   existing: InventoryItem[],

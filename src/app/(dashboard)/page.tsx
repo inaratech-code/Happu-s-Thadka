@@ -15,6 +15,7 @@ import { WelcomeHero } from "@/components/dashboard/welcome-hero";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { QuickActionsPanel } from "@/components/dashboard/quick-actions-panel";
 import { SalesTrendChart } from "@/components/dashboard/sales-trend-chart";
+import { placedKitchenOrders } from "@/lib/kitchen-utils";
 import { useStore } from "@/lib/store";
 import { dashboardMetrics } from "@/lib/dashboard-stats";
 import { formatCurrency } from "@/lib/utils";
@@ -34,7 +35,7 @@ export default function DashboardPage() {
   const { state } = useStore();
   const online = useOnlineStatus();
   const metrics = dashboardMetrics(state.transactions, state.ledgerEntries);
-  const activeKitchen = state.kitchenOrders.filter((o) => o.status !== "served");
+  const activeKitchen = placedKitchenOrders(state.kitchenOrders).filter((o) => o.status !== "served");
   const name = state.settings.restaurantName || "Happus Tadka";
   const location = state.settings.location || "Mahendinagar · Ghuiyaghat";
 

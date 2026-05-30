@@ -45,7 +45,8 @@ export function categoryImagePath(category: string): string | undefined {
 export function resolveMenuImage(
   inventoryId: string,
   category: string,
-  storedImageUrl?: string
+  storedImageUrl?: string,
+  settingsCategoryImageUrl?: string
 ): {
   imageUrl?: string;
   categoryImageUrl?: string;
@@ -53,7 +54,8 @@ export function resolveMenuImage(
 } {
   const slug = catalogSlugFromInventoryId(inventoryId);
   const emoji = menuCategoryEmoji(category);
-  const categoryImageUrl = categoryImagePath(category);
+  const categoryImageUrl =
+    settingsCategoryImageUrl?.trim() || categoryImagePath(category);
   if (storedImageUrl?.trim()) {
     return { imageUrl: storedImageUrl.trim(), categoryImageUrl, emoji };
   }

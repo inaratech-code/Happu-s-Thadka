@@ -66,6 +66,43 @@ export type TableDef = {
   name: string;
 };
 
+/** POS menu grouping — managed under Settings → Menu */
+export type MenuCategoryDef = {
+  id: string;
+  name: string;
+  /** Full URL or site path (e.g. /menu-images/beer.jpg) for POS category fallback */
+  imageUrl?: string;
+  sortOrder: number;
+};
+
+export type PosOrderLine = {
+  inventoryId: string;
+  name: string;
+  price: number;
+  qty: number;
+};
+
+export type PosOrderStatus = "open" | "paid" | "cancelled";
+
+export type PosOrder = {
+  id: string;
+  orderRef: string;
+  table: string;
+  items: PosOrderLine[];
+  status: PosOrderStatus;
+  discountType: "flat" | "percent";
+  discountValue: number;
+  createdAt: string;
+  paidAt?: string;
+  transactionId?: string;
+  paymentMethod?: string;
+  creditCustomer?: string;
+  amountPaid?: number;
+  /** Kitchen ticket id after "Send to kitchen" */
+  kitchenOrderId?: string;
+  sentToKitchenAt?: string;
+};
+
 export type KitchenOrder = {
   id: string;
   table: string;
@@ -73,6 +110,11 @@ export type KitchenOrder = {
   status: "new" | "preparing" | "ready" | "served";
   createdAt: string;
   priority: "normal" | "urgent" | "rush";
+  /** Links ticket to open POS order (sent before payment) */
+  posOrderId?: string;
+  orderRef?: string;
+  /** Set when POS payment is confirmed */
+  transactionId?: string;
 };
 
 export type Transaction = {
@@ -138,10 +180,12 @@ export type AppSettings = {
   restaurantName: string;
   location: string;
   tables: TableDef[];
+  menuCategories: MenuCategoryDef[];
 };
 
 export type AppState = {
   inventory: InventoryItem[];
+  posOrders: PosOrder[];
   kitchenOrders: KitchenOrder[];
   transactions: Transaction[];
   ledgerEntries: LedgerEntry[];
@@ -152,4 +196,5 @@ export type AppState = {
   settings: AppSettings;
   kotCounter: number;
   txCounter: number;
+  orderCounter: number;
 };

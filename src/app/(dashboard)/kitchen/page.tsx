@@ -4,6 +4,7 @@ import { motion } from "@/lib/motion";
 import { Clock, Flame, CheckCircle2, ChevronRight } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
+import { isUnpaidKitchenOrder, placedKitchenOrders } from "@/lib/kitchen-utils";
 import { useStore } from "@/lib/store";
 import type { KitchenOrder } from "@/lib/types";
 import { useMounted } from "@/hooks/use-mounted";
@@ -41,6 +42,9 @@ function OrderCard({
           <p className="text-base font-bold mt-0.5">{order.table}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
+          {isUnpaidKitchenOrder(order) && (
+            <Badge variant="warning">Awaiting payment</Badge>
+          )}
           {order.priority !== "normal" && (
             <Badge variant={order.priority === "rush" ? "danger" : "warning"}>
               {order.priority === "rush" ? (
@@ -96,7 +100,8 @@ function OrderCard({
 
 export default function KitchenPage() {
   const { state, updateKitchenStatus } = useStore();
-  const active = state.kitchenOrders.filter((o) => o.status !== "served");
+  const placed = placedKitchenOrders(state.kitchenOrders);
+  const active = placed.filter((o) => o.status !== "served");
 
   const advance = (order: KitchenOrder) => {
     const col = COLUMNS.find((c) => c.id === order.status);
@@ -107,12 +112,12 @@ export default function KitchenPage() {
     <div className="h-[calc(100vh-7rem)] flex flex-col">
       <PageHeader
         title="Kitchen Display"
-        subtitle={`${active.length} active tickets · tap Advance to move orders forward`}
+        subtitle={`${active.length} active tickets · send from POS before payment · tap Advance to move`}
       />
 
       <div className="flex-1 grid md:grid-cols-3 gap-4 min-h-0 overflow-hidden">
         {COLUMNS.map((col) => {
-          const colOrders = state.kitchenOrders.filter((o) => o.status === col.id);
+          const colOrders = placed.filter((o) => o.status === col.id);
           return (
             <div
               key={col.id}

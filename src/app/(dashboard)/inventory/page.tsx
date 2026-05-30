@@ -15,7 +15,12 @@ import {
   INVENTORY_UNITS,
   STOCK_ADJUST_PRESETS,
 } from "@/lib/entry-presets";
-import { validateInventoryItem, validateStockAdjust, validateStockSell } from "@/lib/validate-entry";
+import {
+  validateInventoryItem,
+  validateStockAdjust,
+  validateStockSell,
+  imageUrlFieldError,
+} from "@/lib/validate-entry";
 import { MenuItemThumb } from "@/components/menu-item-thumb";
 import { resolveMenuImage } from "@/lib/menu-images";
 import { formatCurrency, cn } from "@/lib/utils";
@@ -58,10 +63,13 @@ export default function InventoryPage() {
   const lowCount = items.filter(isLowStock).length;
   const stockValue = items.reduce((s, i) => s + i.stockOnHand * i.avgCost, 0);
 
+  const menuCategories = state.settings.menuCategories;
+
   const categoryOptions = useMemo(() => {
+    const fromMenu = menuCategories.map((c) => c.name);
     const fromItems = items.map((i) => i.category.trim()).filter(Boolean);
-    return [...new Set([...INVENTORY_CATEGORY_SUGGESTIONS, ...fromItems])].sort();
-  }, [items]);
+    return [...new Set([...fromMenu, ...INVENTORY_CATEGORY_SUGGESTIONS, ...fromItems])].sort();
+  }, [items, menuCategories]);
 
   const adjustItem = adjustId ? items.find((i) => i.id === adjustId) : null;
   const sellItem = sellId ? items.find((i) => i.id === sellId) : null;
@@ -87,11 +95,18 @@ export default function InventoryPage() {
 
   const saveItem = (e?: React.FormEvent) => {
     e?.preventDefault();
+    const imageErr = imageUrlFieldError(form.imageUrl);
+    if (imageErr) {
+      setFormErrors({ imageUrl: imageErr });
+      return;
+    }
+
     const payload = {
       ...form,
       name: form.name.trim(),
       category: form.category.trim() || "Other",
       unit: form.unit.trim() || "pcs",
+      imageUrl: form.imageUrl?.trim() || undefined,
     };
 
     const result = validateInventoryItem(payload, items, editId);
@@ -176,28 +191,55 @@ export default function InventoryPage() {
       </FormField>
 
       <FormField label="Category" required error={formErrors.category}>
-        <Input
-          list={`${id}-categories`}
-          placeholder="Pick or type category"
-          value={form.category}
-          onChange={(e) => {
-            setForm((f) => ({ ...f, category: e.target.value }));
-            setFormErrors((err) => ({ ...err, category: "" }));
-          }}
-        />
-        <datalist id={`${id}-categories`}>
-          {categoryOptions.map((c) => (
-            <option key={c} value={c} />
-          ))}
-        </datalist>
-        <PresetChips
-          className="mt-2"
-          presets={INVENTORY_CATEGORY_SUGGESTIONS}
-          onPick={(category) => {
-            setForm((f) => ({ ...f, category }));
-            setFormErrors((err) => ({ ...err, category: "" }));
-          }}
-        />
+        {form.type === "sellable" && menuCategories.length > 0 ? (
+          <Select
+            value={form.category || menuCategories[0]?.name || ""}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, category: e.target.value }));
+              setFormErrors((err) => ({ ...err, category: "" }));
+            }}
+            className="w-full"
+          >
+            {categoryOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <>
+            <Input
+              list={`${id}-categories`}
+              placeholder="Pick or type category"
+              value={form.category}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, category: e.target.value }));
+                setFormErrors((err) => ({ ...err, category: "" }));
+              }}
+            />
+            <datalist id={`${id}-categories`}>
+              {categoryOptions.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+            <PresetChips
+              className="mt-2"
+              presets={INVENTORY_CATEGORY_SUGGESTIONS}
+              onPick={(category) => {
+                setForm((f) => ({ ...f, category }));
+                setFormErrors((err) => ({ ...err, category: "" }));
+              }}
+            />
+          </>
+        )}
+        {form.type === "sellable" && menuCategories.length === 0 && (
+          <p className="text-[11px] text-muted-foreground mt-1">
+            <a href="/settings/menu" className="text-[var(--primary)] underline">
+              Add menu categories
+            </a>{" "}
+            for a fixed list on POS.
+          </p>
+        )}
       </FormField>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -238,6 +280,23 @@ export default function InventoryPage() {
           </Select>
         </FormField>
       </div>
+
+      {form.type === "sellable" && (
+        <FormField
+          label="Menu image URL"
+          error={formErrors.imageUrl}
+          hint="Optional. https:// link or path like /menu-images/item.jpg"
+        >
+          <Input
+            value={form.imageUrl ?? ""}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, imageUrl: e.target.value }));
+              setFormErrors((err) => ({ ...err, imageUrl: "" }));
+            }}
+            placeholder="https://…"
+          />
+        </FormField>
+      )}
 
       <FormField label="Item type" hint="Sellable = menu/POS · Consumable = kitchen supplies only">
         <Select

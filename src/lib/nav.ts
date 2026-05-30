@@ -7,7 +7,15 @@ export const NAV_ITEMS: NavItem[] = [
     icon: "Zap",
     children: [
       { label: "Dashboard", href: "/", icon: "LayoutDashboard" },
-      { label: "Point of Sale", href: "/pos", icon: "Monitor" },
+      {
+        label: "Point of Sale",
+        href: "/pos",
+        icon: "Monitor",
+        children: [
+          { label: "Menu", href: "/pos", icon: "Monitor" },
+          { label: "Orders", href: "/pos/orders", icon: "ClipboardList" },
+        ],
+      },
       { label: "Kitchen", href: "/kitchen", icon: "ChefHat" },
     ],
   },
@@ -50,6 +58,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: "Settings",
     children: [
       { label: "Staff", href: "/settings/staff", icon: "Users" },
+      { label: "Menu catalog", href: "/settings/menu", icon: "UtensilsCrossed" },
       { label: "Settings", href: "/settings", icon: "Settings" },
     ],
   },

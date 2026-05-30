@@ -57,20 +57,20 @@ export function MobileBottomNav({ onOpenMenu }: { onOpenMenu: () => void }) {
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-[var(--border)] bg-[var(--header-bg)]/95 backdrop-blur-md safe-bottom shadow-[0_-4px_24px_rgba(0,0,0,0.12)]"
+      className="mobile-bottom-nav lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-[var(--border)] bg-[var(--header-bg)]/95 backdrop-blur-md safe-bottom shadow-[0_-4px_24px_rgba(0,0,0,0.12)]"
       aria-label="Main navigation"
     >
       <div
         className={cn(
-          "mx-auto flex h-[3.75rem] max-w-lg items-stretch justify-around px-2",
-          devToolsInset && "pl-12 pr-2"
+          "mx-auto flex h-[3.75rem] w-full max-w-lg items-stretch justify-around px-1 sm:px-2 min-w-0",
+          devToolsInset && "pl-10 sm:pl-12 pr-1 sm:pr-2"
         )}
       >
         {visibleTabs.map((tab) => {
           const active = tab.match(pathname);
           const Icon = tab.icon;
           const sharedClass =
-            "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 transition-colors active:scale-95";
+            "relative flex min-w-0 flex-1 max-w-[4.5rem] flex-col items-center justify-center gap-0.5 px-0.5 sm:px-1 transition-colors active:scale-95";
 
           if (tab.action === "menu") {
             return (
