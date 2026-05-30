@@ -574,7 +574,6 @@ input[type="number"] {
   }
 
   .app-main-scroll {
-    -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
     overscroll-behavior-y: contain;
   }
