@@ -103,8 +103,9 @@ export function DeleteBusinessDataSection({ className }: { className?: string })
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-red-300">Delete all business data</h3>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Removes inventory, sales, purchases, expenses, ledger, kitchen orders, stock
-              movements, and POS tables. <strong className="text-foreground">Staff accounts are kept.</strong>{" "}
+              Removes sales, purchases, expenses, ledger, kitchen orders, stock movements,
+              consumable stock, and POS tables.{" "}
+              <strong className="text-foreground">Menu catalog and staff accounts are kept.</strong>{" "}
               Only admins can do this; you must enter your own password.
             </p>
           </div>
@@ -138,15 +139,16 @@ export function DeleteBusinessDataSection({ className }: { className?: string })
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground leading-relaxed">
-            This cannot be undone. Staff logins and permissions will remain. Enter{" "}
+            This cannot be undone. Menu items, categories, staff logins, and permissions will
+            remain. Enter{" "}
             <span className="text-foreground font-medium">{session?.name ?? "your"}</span>
             &apos;s password to confirm.
           </p>
           <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
-            <li>Inventory, menu, and stock history</li>
+            <li>Consumable inventory and stock history</li>
             <li>Sales, purchases, expenses, and ledger</li>
             <li>Kitchen orders and configured tables</li>
-            <li>Financial accounts reset to defaults (staff unchanged)</li>
+            <li>Financial accounts reset to defaults</li>
           </ul>
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Your password</label>

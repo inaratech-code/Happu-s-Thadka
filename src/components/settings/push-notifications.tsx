@@ -30,7 +30,7 @@ export function PushNotificationsSection() {
       </div>
       <p className="text-xs text-muted-foreground leading-relaxed">
         Get alerts for kitchen orders and sync status. Requires VAPID keys on the server
-        (see <code className="text-[11px]">.env.example</code>).
+        (add keys to <code className="text-[11px]">.env.local</code>, then restart the dev server).
       </p>
       <Button size="sm" onClick={() => void enable()} disabled={loading || !configured}>
         {loading ? "Enabling…" : "Enable notifications"}

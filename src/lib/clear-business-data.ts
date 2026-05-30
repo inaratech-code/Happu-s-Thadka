@@ -2,17 +2,19 @@ import { DEFAULT_FINANCIAL_ACCOUNTS } from "@/lib/default-accounts";
 import { DEFAULT_PARTIES } from "@/lib/default-parties";
 import type { AppState } from "@/lib/types";
 
-/** Wipe operational data; keep staff and restaurant profile (name, location). */
+/** Wipe operational data; keep staff, menu catalog, and restaurant profile (name, location). */
 export function buildClearedAppState(current: AppState): AppState {
+  const menuInventory = current.inventory.filter((item) => item.type === "sellable");
+
   return {
     staff: current.staff,
     settings: {
       restaurantName: current.settings.restaurantName,
       location: current.settings.location,
       tables: [],
-      menuCategories: [],
+      menuCategories: current.settings.menuCategories.map((c) => ({ ...c })),
     },
-    inventory: [],
+    inventory: menuInventory.map((item) => ({ ...item })),
     posOrders: [],
     kitchenOrders: [],
     transactions: [],
