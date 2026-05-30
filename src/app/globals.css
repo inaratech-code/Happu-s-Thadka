@@ -34,7 +34,6 @@
 html {
   overflow-x: hidden;
   max-width: 100%;
-  height: 100%;
   --background: #0a0a0b;
   --foreground: #e8e6e3;
   --surface: #111113;
@@ -194,10 +193,9 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  min-height: 100%;
-  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
-  overflow-y: auto;
   max-width: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -535,6 +533,19 @@ input[type="number"] {
 @media (min-width: 1280px) {
   .pos-menu-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  html.app-shell-active,
+  html.app-shell-active body {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .app-main-scroll {
+    overscroll-behavior-y: contain;
   }
 }
 

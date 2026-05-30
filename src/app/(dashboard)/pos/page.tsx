@@ -349,8 +349,8 @@ export default function POSPage() {
   }, [showOrderPanel, showPayment, showReceipt]);
 
   return (
-    <div className="flex flex-col gap-3 w-full max-w-full min-w-0 lg:flex-1 lg:min-h-0 lg:flex-row lg:gap-4 lg:min-h-[calc(100dvh-8.5rem)] lg:overflow-hidden">
-      <div className="flex flex-col min-w-0 max-w-full lg:flex-1 lg:min-h-0 lg:flex lg:flex-col lg:overflow-hidden">
+    <div className="flex flex-col gap-3 w-full max-w-full min-w-0 min-h-0 lg:flex-1 lg:flex-row lg:gap-4 lg:overflow-hidden">
+      <div className="flex flex-col min-w-0 max-w-full min-h-0 lg:flex-1 lg:flex lg:flex-col lg:overflow-hidden">
         <div className="flex items-stretch gap-2 mb-2 min-w-0 max-w-full">
           <div className="relative flex-1 min-w-0 lg:max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />

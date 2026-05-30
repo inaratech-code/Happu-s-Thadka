@@ -32,7 +32,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="noise-bg relative min-h-screen max-lg:h-dvh max-lg:max-h-dvh flex min-w-0 max-w-full overflow-x-hidden max-lg:overflow-hidden">
+    <div className="noise-bg relative flex min-w-0 max-w-full overflow-x-hidden max-lg:h-dvh max-lg:max-h-dvh max-lg:overflow-hidden lg:h-screen lg:max-h-screen">
       <div className="ambient-glow ambient-glow-amber" />
       <div className="ambient-glow ambient-glow-orange" />
 
@@ -73,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-hidden relative z-10 max-lg:h-full max-lg:min-h-0 lg:min-h-screen lg:pl-[15.75rem]">
+      <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-hidden relative z-10 max-lg:h-full max-lg:min-h-0 lg:h-screen lg:max-h-screen lg:pl-[15.75rem]">
         {/* Top bar */}
         <header className="app-titlebar sticky top-0 z-20 flex items-center gap-1.5 sm:gap-3 h-14 px-2 sm:px-4 lg:px-6 border-b border-[var(--border)] bg-[var(--header-bg)] backdrop-blur-md safe-top">
           <button
