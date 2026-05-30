@@ -9,8 +9,36 @@ function urlBase64ToUint8Array(base64: string) {
   return out;
 }
 
-export function isPushConfigured(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+let cachedPublicKey: string | null | undefined;
+
+/** Inline at build when set; otherwise loaded from /api/push/config at runtime. */
+export async function getVapidPublicKey(): Promise<string | null> {
+  const inlined = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+  if (inlined) return inlined;
+
+  if (typeof window === "undefined") return null;
+
+  if (cachedPublicKey !== undefined) return cachedPublicKey;
+
+  try {
+    const res = await fetch("/api/push/config", { credentials: "same-origin" });
+    if (!res.ok) {
+      cachedPublicKey = null;
+      return null;
+    }
+    const data = (await res.json()) as { publicKey?: string | null };
+    const key = data.publicKey?.trim() || null;
+    cachedPublicKey = key;
+    return key;
+  } catch {
+    cachedPublicKey = null;
+    return null;
+  }
+}
+
+export async function isPushConfigured(): Promise<boolean> {
+  const key = await getVapidPublicKey();
+  return Boolean(key);
 }
 
 export async function subscribeToPushNotifications(): Promise<
@@ -20,17 +48,17 @@ export async function subscribeToPushNotifications(): Promise<
     return { ok: false, error: "Not available on server" };
   }
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-    return { ok: false, error: "Push notifications are not supported in this browser" };
+    return { ok: false, error: "This browser does not support alerts." };
   }
 
-  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const vapidPublicKey = await getVapidPublicKey();
   if (!vapidPublicKey) {
-    return { ok: false, error: "Push is not configured (missing VAPID public key)" };
+    return { ok: false, error: "Alerts are not available on this device yet." };
   }
 
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
-    return { ok: false, error: "Notification permission denied" };
+    return { ok: false, error: "Allow notifications in your browser to continue." };
   }
 
   try {

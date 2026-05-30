@@ -3,12 +3,11 @@
 import { useState } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { isPushConfigured, subscribeToPushNotifications } from "@/lib/pwa-push";
+import { subscribeToPushNotifications } from "@/lib/pwa-push";
 
 export function PushNotificationsSection() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const configured = isPushConfigured();
 
   const enable = async () => {
     setLoading(true);
@@ -16,7 +15,7 @@ export function PushNotificationsSection() {
     const result = await subscribeToPushNotifications();
     setLoading(false);
     if (result.ok) {
-      setMessage("Notifications enabled for this device.");
+      setMessage("You will get alerts for new kitchen orders.");
     } else {
       setMessage(result.error);
     }
@@ -26,18 +25,14 @@ export function PushNotificationsSection() {
     <div className="surface-card p-5 space-y-3">
       <div className="flex items-center gap-2">
         <Bell className="h-4 w-4 text-amber-400" />
-        <h3 className="text-sm font-semibold">Push notifications</h3>
+        <h3 className="text-sm font-semibold">Alerts</h3>
       </div>
       <p className="text-xs text-muted-foreground leading-relaxed">
-        Get alerts for kitchen orders and sync status. Requires VAPID keys on the server
-        (add keys to <code className="text-[11px]">.env.local</code>, then restart the dev server).
+        Get a ping when a new kitchen order comes in.
       </p>
-      <Button size="sm" onClick={() => void enable()} disabled={loading || !configured}>
-        {loading ? "Enabling…" : "Enable notifications"}
+      <Button size="sm" onClick={() => void enable()} disabled={loading}>
+        {loading ? "One moment…" : "Turn on alerts"}
       </Button>
-      {!configured ? (
-        <p className="text-xs text-amber-400/90">Push not configured — add VAPID keys to enable.</p>
-      ) : null}
       {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
     </div>
   );
