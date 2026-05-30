@@ -1,15 +1,21 @@
 import type { InventoryItem, KitchenOrder, MenuItem, Transaction } from "./types";
+import { resolveMenuImage } from "./menu-images";
 
 export function menuFromInventory(inventory: InventoryItem[]): MenuItem[] {
   return inventory
     .filter((i) => i.type === "sellable" && i.sellingPrice > 0)
-    .map((i) => ({
-      id: i.id,
-      name: i.name,
-      category: i.category,
-      price: i.sellingPrice,
-      emoji: "🍽️",
-    }));
+    .map((i) => {
+      const visual = resolveMenuImage(i.id, i.category, i.imageUrl);
+      return {
+        id: i.id,
+        name: i.name,
+        category: i.category,
+        price: i.sellingPrice,
+        emoji: visual.emoji,
+        imageUrl: visual.imageUrl,
+        categoryImageUrl: visual.categoryImageUrl,
+      };
+    });
 }
 
 export function isLowStock(item: InventoryItem) {

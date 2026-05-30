@@ -1,6 +1,6 @@
 import type { InventoryItem } from "./types";
 
-/** Stable IDs for POS menu items — synced on every load */
+/** Stable IDs for POS menu items — synced to Neon inventory_items on load */
 export const MENU_CATALOG_PREFIX = "menu-";
 
 type CatalogDef = {
@@ -148,10 +148,35 @@ const CATALOG_DEFS: CatalogDef[] = [
 
 export const MENU_CATALOG: InventoryItem[] = CATALOG_DEFS.map(item);
 
+/** Metadata for image generation script (npm run menu:images) */
+export const MENU_CATALOG_META = CATALOG_DEFS.map((d) => ({
+  slug: d.id,
+  name: d.name,
+  category: d.category,
+}));
+
 const catalogIdSet = new Set(MENU_CATALOG.map((c) => c.id));
 
 function isCatalogItem(id: string): boolean {
   return id.startsWith(MENU_CATALOG_PREFIX);
+}
+
+/** True when DB/local storage is missing or outdated catalog rows */
+export function needsMenuCatalogPersist(inventory: InventoryItem[]): boolean {
+  for (const catalog of MENU_CATALOG) {
+    const row = inventory.find((i) => i.id === catalog.id);
+    if (!row) return true;
+    if (
+      row.name !== catalog.name ||
+      row.category !== catalog.category ||
+      row.sellingPrice !== catalog.sellingPrice ||
+      row.unit !== catalog.unit ||
+      row.type !== catalog.type
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Merge catalog prices/names into inventory; keep stock and custom items */
@@ -168,6 +193,7 @@ export function ensureMenuCatalog(inventory: InventoryItem[]): InventoryItem[] {
       sellingPrice: catalog.sellingPrice,
       unit: catalog.unit,
       type: "sellable" as const,
+      imageUrl: undefined,
     };
   });
 

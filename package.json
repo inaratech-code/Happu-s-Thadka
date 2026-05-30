@@ -14,7 +14,10 @@
     "prestart": "node scripts/ensure-next-cache.mjs --production",
     "start": "next start -H 127.0.0.1",
     "lint": "next lint",
-    "db:migrate": "node scripts/run-migrations.mjs"
+    "db:migrate": "node scripts/run-migrations.mjs",
+    "db:seed-menu": "node scripts/seed-menu-catalog.mjs",
+    "menu:images": "node scripts/generate-menu-images.mjs",
+    "menu:images:categories": "node scripts/generate-menu-images.mjs --categories-only"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

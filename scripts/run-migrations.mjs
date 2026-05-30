@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "@neondatabase/serverless";
+import { requireDatabaseUrl } from "./load-env.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const files = [
@@ -9,13 +10,10 @@ const files = [
   "db/migrations/002_tenants.sql",
   "db/migrations/003_row_level_security.sql",
   "db/migrations/004_drop_legacy_tables.sql",
+  "db/migrations/005_inventory_image_url.sql",
 ];
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  console.error("DATABASE_URL is not set");
-  process.exit(1);
-}
+const connectionString = requireDatabaseUrl();
 
 const pool = new Pool({ connectionString });
 

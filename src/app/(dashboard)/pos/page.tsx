@@ -14,10 +14,19 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
+import { MenuItemThumb } from "@/components/menu-item-thumb";
 import { useStore } from "@/lib/store";
 import { cn, formatCurrency } from "@/lib/utils";
 
-type CartItem = { id: string; name: string; price: number; qty: number; emoji: string };
+type CartItem = {
+  id: string;
+  name: string;
+  price: number;
+  qty: number;
+  emoji: string;
+  imageUrl?: string;
+  categoryImageUrl?: string;
+};
 
 function calcDiscount(subtotal: number, type: "flat" | "percent", value: number) {
   if (!value || value <= 0) return 0;
@@ -63,7 +72,15 @@ export default function POSPage() {
       }
       return [
         ...prev,
-        { id: item.id, name: item.name, price: item.price, qty: 1, emoji: item.emoji },
+        {
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          qty: 1,
+          emoji: item.emoji,
+          imageUrl: item.imageUrl,
+          categoryImageUrl: item.categoryImageUrl,
+        },
       ];
     });
   };
@@ -191,8 +208,14 @@ export default function POSPage() {
                 onClick={() => addToCart(item)}
                 className="surface-card-interactive text-left p-3"
               >
-                <span className="text-2xl">{item.emoji}</span>
-                <p className="text-sm font-medium mt-2 leading-tight text-foreground">{item.name}</p>
+                <MenuItemThumb
+                  name={item.name}
+                  emoji={item.emoji}
+                  imageUrl={item.imageUrl}
+                  categoryImageUrl={item.categoryImageUrl}
+                  className="mb-2"
+                />
+                <p className="text-sm font-medium leading-tight text-foreground">{item.name}</p>
                 <p className="text-xs text-price tabular-nums mt-1 font-semibold">
                   {formatCurrency(item.price)}
                 </p>
@@ -228,7 +251,13 @@ export default function POSPage() {
                 key={item.id}
                 className="flex items-center gap-2 rounded-lg panel-row p-2.5"
               >
-                <span className="text-lg">{item.emoji}</span>
+                <MenuItemThumb
+                  name={item.name}
+                  emoji={item.emoji}
+                  imageUrl={item.imageUrl}
+                  categoryImageUrl={item.categoryImageUrl}
+                  size="sm"
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate text-foreground">{item.name}</p>
                   <p className="text-xs text-muted-foreground tabular-nums">

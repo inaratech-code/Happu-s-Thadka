@@ -16,6 +16,8 @@ import {
   STOCK_ADJUST_PRESETS,
 } from "@/lib/entry-presets";
 import { validateInventoryItem, validateStockAdjust, validateStockSell } from "@/lib/validate-entry";
+import { MenuItemThumb } from "@/components/menu-item-thumb";
+import { resolveMenuImage } from "@/lib/menu-images";
 import { formatCurrency, cn } from "@/lib/utils";
 
 const emptyItem = (): Omit<InventoryItem, "id"> => ({
@@ -384,6 +386,8 @@ export default function InventoryPage() {
             const stockValueItem = item.stockOnHand * item.avgCost;
             const low = isLowStock(item);
             const inStock = item.stockOnHand > item.reorderAt;
+            const visual =
+              item.type === "sellable" ? resolveMenuImage(item.id, item.category, item.imageUrl) : null;
 
             return (
               <motion.div
@@ -397,9 +401,20 @@ export default function InventoryPage() {
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-semibold leading-tight">{item.name}</h3>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{item.category}</p>
+                  <div className="flex items-start gap-2 min-w-0 flex-1">
+                    {visual && (
+                      <MenuItemThumb
+                        name={item.name}
+                        emoji={visual.emoji}
+                        imageUrl={visual.imageUrl}
+                        categoryImageUrl={visual.categoryImageUrl}
+                        size="sm"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold leading-tight">{item.name}</h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{item.category}</p>
+                    </div>
                   </div>
                   <Badge variant={item.type === "sellable" ? "sellable" : "consumable"}>
                     {item.type === "sellable" ? "Sellable" : "Consumable"}

@@ -1,4 +1,5 @@
-import { appStateToDbPayload, rowsToAppState, type DbRows } from "@/lib/db/mappers";
+import { needsMenuCatalogPersist } from "@/lib/default-menu";
+import { appStateToDbPayload, mapInventory, rowsToAppState, type DbRows } from "@/lib/db/mappers";
 import type { AppState } from "@/lib/types";
 import { DEFAULT_RESTAURANT_ID } from "@/lib/env";
 import { getPool } from "@/lib/db/client";
@@ -70,11 +71,14 @@ export async function loadAppStateFromDb(
       [restaurantId]
     );
 
+    const inventoryRows = invRes.rows as Record<string, unknown>[];
+    const rawInventory = inventoryRows.map(mapInventory);
+
     const rows: DbRows = {
       restaurant,
       tables: tablesRes.rows,
       staff: staffRes.rows,
-      inventory: invRes.rows as Record<string, unknown>[],
+      inventory: inventoryRows,
       transactions: txRes.rows as Record<string, unknown>[],
       financial_accounts: facRes.rows as Record<string, unknown>[],
       parties: partyRes.rows as Record<string, unknown>[],
@@ -83,7 +87,13 @@ export async function loadAppStateFromDb(
       kitchen_orders: kotRes.rows as Record<string, unknown>[],
     };
 
-    return rowsToAppState(rows);
+    const state = rowsToAppState(rows);
+
+    if (needsMenuCatalogPersist(rawInventory)) {
+      await saveAppStateToDb(state, restaurantId);
+    }
+
+    return state;
   });
 }
 
@@ -163,8 +173,8 @@ async function insertChildRows(
   for (const row of payload.inventory) {
     await client.query(
       `insert into inventory_items (
-        id, restaurant_id, name, category, stock_on_hand, unit, avg_cost, selling_price, reorder_at, item_type
-      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        id, restaurant_id, name, category, stock_on_hand, unit, avg_cost, selling_price, reorder_at, item_type, image_url
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         row.id,
         row.restaurant_id,
@@ -176,6 +186,7 @@ async function insertChildRows(
         row.selling_price,
         row.reorder_at,
         row.item_type,
+        row.image_url,
       ]
     );
   }

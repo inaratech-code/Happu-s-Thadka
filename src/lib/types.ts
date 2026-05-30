@@ -45,6 +45,8 @@ export type InventoryItem = {
   sellingPrice: number;
   reorderAt: number;
   type: "sellable" | "consumable";
+  /** Local or CDN path for POS menu thumbnail, persisted in inventory_items.image_url */
+  imageUrl?: string;
 };
 
 export type MenuItem = {
@@ -53,6 +55,10 @@ export type MenuItem = {
   category: string;
   price: number;
   emoji: string;
+  /** Local path under /public, e.g. /menu-images/carlsberg.jpg */
+  imageUrl?: string;
+  /** Category fallback when item image is not generated yet */
+  categoryImageUrl?: string;
 };
 
 export type TableDef = {

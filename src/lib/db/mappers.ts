@@ -84,7 +84,8 @@ export function rowsToAppState(rows: DbRows): AppState {
   };
 }
 
-function mapInventory(row: Record<string, unknown>): InventoryItem {
+export function mapInventory(row: Record<string, unknown>): InventoryItem {
+  const imageUrl = row.image_url as string | null | undefined;
   return {
     id: row.id as string,
     name: row.name as string,
@@ -95,6 +96,7 @@ function mapInventory(row: Record<string, unknown>): InventoryItem {
     sellingPrice: Number(row.selling_price),
     reorderAt: Number(row.reorder_at),
     type: row.item_type as InventoryItem["type"],
+    imageUrl: imageUrl ?? undefined,
   };
 }
 
@@ -204,6 +206,7 @@ export function appStateToDbPayload(state: AppState, restaurantId: string) {
       selling_price: i.sellingPrice,
       reorder_at: i.reorderAt,
       item_type: i.type,
+      image_url: i.imageUrl ?? null,
     })),
     transactions: state.transactions.map((t) => ({
       id: t.id,

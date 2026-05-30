@@ -7,6 +7,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -23,7 +24,7 @@ import type {
   Transaction,
 } from "./types";
 import { DEFAULT_ADMIN } from "./default-admin";
-import { ensureMenuCatalog } from "./default-menu";
+import { ensureMenuCatalog, needsMenuCatalogPersist } from "./default-menu";
 import { DEFAULT_PARTIES, ensureDefaultParties, isFixedLedgerParty } from "./default-parties";
 import {
   DEFAULT_DIGITAL_ACCOUNT_ID,
@@ -92,6 +93,7 @@ function normalizeLedgerEntry(entry: LedgerEntry, defaultAccountId: string): Led
 
 function hydrateState(parsed: AppState): AppState {
   try {
+    const rawInventory = Array.isArray(parsed.inventory) ? parsed.inventory : [];
     const rawAccounts =
       Array.isArray(parsed.financialAccounts) && parsed.financialAccounts.length > 0
         ? parsed.financialAccounts
@@ -106,10 +108,12 @@ function hydrateState(parsed: AppState): AppState {
       ? staff
       : [...staff.filter((m) => m.id !== DEFAULT_ADMIN.id), DEFAULT_ADMIN];
 
+    const inventory = ensureMenuCatalog(rawInventory);
+
     return {
       ...emptyState,
       ...parsed,
-      inventory: ensureMenuCatalog(Array.isArray(parsed.inventory) ? parsed.inventory : []),
+      inventory,
       kitchenOrders: Array.isArray(parsed.kitchenOrders) ? parsed.kitchenOrders : [],
       transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
       stockMovements: Array.isArray(parsed.stockMovements) ? parsed.stockMovements : [],
@@ -140,7 +144,11 @@ function loadState(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...emptyState, staff: [DEFAULT_ADMIN] };
     const parsed = JSON.parse(raw) as AppState;
-    return hydrateState(parsed);
+    const state = hydrateState(parsed);
+    if (needsMenuCatalogPersist(Array.isArray(parsed.inventory) ? parsed.inventory : [])) {
+      saveState(state);
+    }
+    return state;
   } catch {
     try {
       localStorage.removeItem(STORAGE_KEY);
@@ -212,7 +220,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (isRemoteDataSource()) {
           const remote = await loadAppStateClient();
           if (!cancelled) {
-            setState(remote ? hydrateState(remote) : { ...emptyState, staff: [] });
+            if (remote) {
+              const rawInventory = Array.isArray(remote.inventory) ? remote.inventory : [];
+              const state = hydrateState(remote);
+              setState(state);
+              if (needsMenuCatalogPersist(rawInventory)) {
+                void saveAppStateClient(state).catch((err) =>
+                  console.error("Failed to sync menu catalog to server", err)
+                );
+              }
+            } else {
+              setState({ ...emptyState, staff: [] });
+            }
           }
         } else {
           if (!cancelled) setState(loadState());
@@ -243,12 +262,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(fallback);
   }, []);
 
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSaveRef = useRef<AppState | null>(null);
+
   const persistToBackend = useCallback((next: AppState) => {
     if (isRemoteDataSource()) {
-      void saveAppStateClient(next).catch((err) => console.error("Failed to save to server", err));
+      pendingSaveRef.current = next;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        const toSave = pendingSaveRef.current;
+        saveTimerRef.current = null;
+        if (!toSave) return;
+        void saveAppStateClient(toSave).catch((err) => console.error("Failed to save to server", err));
+      }, 250);
     } else {
       saveState(next);
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
   }, []);
 
   const persist = useCallback(
