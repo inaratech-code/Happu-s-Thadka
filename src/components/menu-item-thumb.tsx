@@ -50,12 +50,12 @@ export function MenuItemThumb({
   }
 
   const dim =
-    size === "sm" ? "h-8 w-8" : "aspect-[5/4] w-full max-h-[5.25rem] sm:max-h-[6rem]";
+    size === "sm" ? "relative h-8 w-8" : "relative aspect-[5/4] w-full max-h-[5.25rem] sm:max-h-[6rem]";
 
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-md bg-[var(--muted)] shrink-0",
+        "overflow-hidden rounded-md bg-[var(--muted)] shrink-0",
         dim,
         className
       )}

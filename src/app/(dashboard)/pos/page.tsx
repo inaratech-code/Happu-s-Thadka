@@ -349,8 +349,8 @@ export default function POSPage() {
   }, [showOrderPanel, showPayment, showReceipt]);
 
   return (
-    <div className="flex flex-col gap-3 w-full max-w-full min-w-0 min-h-0 lg:flex-1 lg:flex-row lg:gap-4 lg:overflow-hidden">
-      <div className="flex flex-col min-w-0 max-w-full min-h-0 lg:flex-1 lg:flex lg:flex-col lg:overflow-hidden">
+    <div className="flex flex-col gap-3 w-full max-w-full min-w-0 lg:flex-row lg:items-start lg:gap-4">
+      <div className="flex flex-col min-w-0 max-w-full flex-1 gap-2">
         <div className="flex items-stretch gap-2 mb-2 min-w-0 max-w-full">
           <div className="relative flex-1 min-w-0 lg:max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
@@ -449,14 +449,14 @@ export default function POSPage() {
             </p>
           </div>
         ) : (
-          <div className="pos-menu-grid min-w-0 max-w-full pb-4 lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-y-contain lg:pb-0">
+          <div className="pos-menu-grid min-w-0 max-w-full">
             {filtered.map((item, index) => (
               <motion.button
                 key={item.id}
                 type="button"
                 whileTap={{ scale: 0.98 }}
                 onClick={() => addToCart(item)}
-                className="surface-card-interactive text-left p-2 sm:p-3 min-w-0 w-full overflow-hidden flex flex-col"
+                className="surface-card-interactive text-left p-2 sm:p-3 min-w-0 w-full h-auto block"
               >
                 <MenuItemThumb
                   name={item.name}
