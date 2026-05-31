@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import {
-  IDLE_TIMEOUT_MS,
   clearLastActivity,
   isIdleExpired,
   readLastActivity,

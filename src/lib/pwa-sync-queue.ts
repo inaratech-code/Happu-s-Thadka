@@ -92,7 +92,7 @@ export async function registerPeriodicSync() {
 export async function flushClientSyncQueue(): Promise<void> {
   if (!isDatabaseConfiguredClient() || !navigator.onLine) return;
 
-  let queue = await readSyncQueue();
+  const queue = await readSyncQueue();
   if (queue.length === 0) return;
 
   const remaining: QueueEntry[] = [];

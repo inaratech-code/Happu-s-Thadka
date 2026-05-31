@@ -395,6 +395,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+    // Reload when auth identity changes; full `session` object is unstable across renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- session?.staffId is the stable identity key
   }, [authReady, session?.staffId]);
 
   useEffect(() => {

@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "@/lib/motion";
 import {
   Search,
-  CreditCard,
   X,
   Receipt,
   ClipboardList,
@@ -56,7 +55,6 @@ export default function POSPage() {
     state,
     createPosOrder,
     updatePosOrder,
-    cancelPosOrder,
     sendPosOrderToKitchen,
     finalizePosOrder,
     flushPendingSave,
@@ -251,13 +249,6 @@ export default function POSPage() {
         .map((c) => (c.id === id ? { ...c, qty: c.qty + delta } : c))
         .filter((c) => c.qty > 0)
     );
-  };
-
-  const clearCart = () => {
-    if (activeOrderId) cancelPosOrder(activeOrderId);
-    setActiveOrderId(null);
-    setCart([]);
-    setDiscountValue("");
   };
 
   const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0);
