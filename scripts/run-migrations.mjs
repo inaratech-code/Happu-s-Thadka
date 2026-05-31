@@ -16,6 +16,7 @@ const files = [
   "db/migrations/008_pos_orders_rls.sql",
   "db/migrations/009_kitchen_before_payment.sql",
   "db/migrations/010_menu_categories.sql",
+  "db/migrations/011_ensure_default_admin.sql",
 ];
 
 const connectionString = requireDatabaseUrl();

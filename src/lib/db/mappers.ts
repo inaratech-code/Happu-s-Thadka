@@ -233,7 +233,14 @@ function mapKitchenOrder(row: Record<string, unknown>): KitchenOrder {
   };
 }
 
+function ensureStaffForPersist(staff: StaffMember[]): StaffMember[] {
+  const activeAdmin = staff.some((m) => m.active && m.role === "admin");
+  if (activeAdmin) return staff;
+  return [...staff.filter((m) => m.id !== DEFAULT_ADMIN.id), DEFAULT_ADMIN];
+}
+
 export function appStateToDbPayload(state: AppState, restaurantId: string) {
+  const staff = ensureStaffForPersist(state.staff);
   return {
     restaurant: {
       id: restaurantId,
@@ -255,7 +262,7 @@ export function appStateToDbPayload(state: AppState, restaurantId: string) {
       image_url: c.imageUrl ?? null,
       sort_order: c.sortOrder,
     })),
-    staff: state.staff.map((s) => ({
+    staff: staff.map((s) => ({
       id: s.id,
       restaurant_id: restaurantId,
       name: s.name,
