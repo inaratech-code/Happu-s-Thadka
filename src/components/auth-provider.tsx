@@ -17,6 +17,12 @@ import { verifyPassword } from "@/lib/password";
 import { isRemoteDataSource } from "@/lib/data-source";
 import { getFixedWorkspaceId } from "@/lib/env";
 import { ALL_PERMISSIONS, canAccessPath, hasPermission, type AppPermission } from "@/lib/permissions";
+import {
+  clearLastActivity,
+  isIdleExpired,
+  touchLastActivity,
+} from "@/lib/auth-idle";
+import { useIdleLogout } from "@/hooks/use-idle-logout";
 
 type AuthContextValue = {
   session: AuthSession | null;
@@ -76,15 +82,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     if (usesRemoteAuth) {
       const cached = readCachedSession();
+      if (cached && isIdleExpired()) {
+        writeCachedSession(null);
+        clearLastActivity();
+        void fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+        setSessionState(null);
+        setReady(true);
+        return;
+      }
       if (cached) {
         setSessionState(cached);
-        setReady(true);
       }
 
       void fetch("/api/auth/me", { credentials: "include", cache: "no-store" })
         .then(async (res) => {
           if (res.ok) {
             const data = (await res.json()) as { session: AuthSession | null };
+            if (data.session && isIdleExpired()) {
+              writeCachedSession(null);
+              clearLastActivity();
+              void fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+              setSessionState(null);
+              return;
+            }
+            if (data.session) touchLastActivity();
             setSessionState(data.session);
             writeCachedSession(data.session);
           } else {
@@ -102,7 +123,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setSessionState(getSession());
+    const local = getSession();
+    if (local && isIdleExpired()) {
+      clearSession();
+      clearLastActivity();
+      setSessionState(null);
+    } else {
+      if (local) touchLastActivity();
+      setSessionState(local);
+    }
     setReady(true);
   }, [usesRemoteAuth]);
 
@@ -135,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.session) {
           writeCachedSession(data.session);
           setSessionState(data.session);
+          touchLastActivity();
         }
         return { ok: true as const };
       }
@@ -153,12 +183,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const next = toSession(member);
       setSession(next);
       setSessionState(next);
+      touchLastActivity();
       return { ok: true as const };
     },
     [usesRemoteAuth]
   );
 
   const logout = useCallback(() => {
+    clearLastActivity();
     if (usesRemoteAuth) {
       writeCachedSession(null);
       void fetch("/api/auth/logout", { method: "POST", credentials: "include" });
@@ -168,6 +200,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionState(null);
     router.push("/login");
   }, [router, usesRemoteAuth]);
+
+  useIdleLogout(Boolean(session), logout);
 
   const value = useMemo<AuthContextValue>(
     () => ({

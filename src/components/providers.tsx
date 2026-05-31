@@ -7,10 +7,10 @@ import { StoreProvider } from "@/lib/store";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <StoreProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <StoreProvider>
         <AppBootstrap>{children}</AppBootstrap>
-      </AuthProvider>
-    </StoreProvider>
+      </StoreProvider>
+    </AuthProvider>
   );
 }

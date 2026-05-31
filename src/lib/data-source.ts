@@ -37,6 +37,7 @@ export async function saveAppStateClient(state: AppState): Promise<void> {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        if (res.status === 401) return;
         const err = new Error((body as { error?: string }).error ?? "Failed to save data to server");
         if (!navigator.onLine) await enqueueStateForBackgroundSync(state);
         throw err;

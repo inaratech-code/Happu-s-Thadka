@@ -37,6 +37,7 @@ import {
 import { hashPassword } from "./password";
 import { ALL_PERMISSIONS } from "./permissions";
 import { loadAppStateClient, saveAppStateClient, isRemoteDataSource } from "./data-source";
+import { useAuth } from "@/components/auth-provider";
 import { normalizeIsoDate } from "./iso-date";
 import { formatPosOrderRef } from "./pos-order";
 import { ensureMenuCategories, needsMenuCategoriesPersist } from "./menu-categories";
@@ -299,15 +300,30 @@ type StoreContextValue = {
 const StoreContext = createContext<StoreContextValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const { ready: authReady, session } = useAuth();
   const [state, setState] = useState<AppState>(emptyState);
   const [hydrated, setHydrated] = useState(false);
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSaveRef = useRef<AppState | null>(null);
 
   useLayoutEffect(() => {
+    if (!authReady) return;
+
     let cancelled = false;
+    setHydrated(false);
 
     (async () => {
       try {
         if (isRemoteDataSource()) {
+          if (!session) {
+            if (!cancelled) {
+              setState({ ...emptyState, staff: [] });
+            }
+            return;
+          }
+
           const remote = await loadAppStateClient();
           if (!cancelled) {
             if (remote) {
@@ -345,18 +361,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authReady, session?.staffId]);
 
   useEffect(() => {
+    if (!authReady) return;
     const fallback = window.setTimeout(() => setHydrated(true), 2500);
     return () => window.clearTimeout(fallback);
-  }, []);
+  }, [authReady]);
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSaveRef = useRef<AppState | null>(null);
+  useEffect(() => {
+    if (isRemoteDataSource() && !session) {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      pendingSaveRef.current = null;
+    }
+  }, [session]);
 
   const persistToBackend = useCallback((next: AppState) => {
     if (isRemoteDataSource()) {
+      if (!sessionRef.current) return;
       pendingSaveRef.current = next;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {

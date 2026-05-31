@@ -1,5 +1,5 @@
 /* Happus Tadka — offline-first service worker */
-const CACHE_VERSION = "happus-tadka-v7";
+const CACHE_VERSION = "happus-tadka-v8";
 
 const SYNC_CACHE_NAME = "happus-tadka-sync-v1";
 const SYNC_QUEUE_KEY = "/__happus_sync_queue__";
@@ -71,12 +71,14 @@ function isSameOrigin(request) {
   }
 }
 
-/** Network first — never serve stale HTML/JS when online */
-async function networkFirst(request, { cacheName = CACHE_VERSION } = {}) {
+/** Cache hashed static assets only — never cache HTML (stale HTML → 404 CSS after deploy). */
+async function cacheStaticAsset(request) {
   const response = await fetch(request, { cache: "no-store" });
   if (response.ok && response.type !== "opaque") {
-    const cache = await caches.open(cacheName);
+    const cache = await caches.open(CACHE_VERSION);
     await cache.put(request, response.clone());
+  } else if (response.status === 404) {
+    await caches.delete(request);
   }
   return response;
 }
@@ -86,10 +88,8 @@ async function navigationResponse(event) {
   try {
     const preload = await event.preloadResponse;
     if (preload) return preload;
-    return await networkFirst(request);
+    return await fetch(request, { cache: "no-store" });
   } catch {
-    const cached = await caches.match(request);
-    if (cached) return cached;
     const offline = await caches.match("/offline.html");
     if (offline) return offline;
     return new Response("Offline", { status: 503, statusText: "Offline" });
@@ -98,7 +98,7 @@ async function navigationResponse(event) {
 
 async function staticResponse(request) {
   try {
-    return await networkFirst(request);
+    return await cacheStaticAsset(request);
   } catch {
     const cached = await caches.match(request);
     if (cached) return cached;

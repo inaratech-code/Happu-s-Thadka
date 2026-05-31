@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { WifiOff } from "lucide-react";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { registerPeriodicSync } from "@/lib/pwa-sync-queue";
+import { hardRefreshPage } from "@/lib/app-refresh";
 import { cn } from "@/lib/utils";
 
 function unregisterServiceWorkers() {
@@ -31,6 +32,13 @@ function registerServiceWorker() {
   }
 
   const register = () => {
+    let reloadedForUpdate = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloadedForUpdate) return;
+      reloadedForUpdate = true;
+      window.location.reload();
+    });
+
     navigator.serviceWorker
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
       .then((reg) => {
@@ -66,6 +74,27 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     registerServiceWorker();
     void registerPeriodicSync();
+  }, []);
+
+  useEffect(() => {
+    if (isLocalDevHost()) return;
+
+    const recoverKey = "happus-stale-asset-recover";
+    const onStylesheetError = () => {
+      if (sessionStorage.getItem(recoverKey)) return;
+      sessionStorage.setItem(recoverKey, "1");
+      void hardRefreshPage();
+    };
+
+    document.querySelectorAll('link[rel="stylesheet"]').forEach((link) => {
+      link.addEventListener("error", onStylesheetError);
+    });
+
+    return () => {
+      document.querySelectorAll('link[rel="stylesheet"]').forEach((link) => {
+        link.removeEventListener("error", onStylesheetError);
+      });
+    };
   }, []);
 
   return (
