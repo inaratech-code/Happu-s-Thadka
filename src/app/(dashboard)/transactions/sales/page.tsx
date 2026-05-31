@@ -1,7 +1,7 @@
 "use client";
 
-import { TransactionsView } from "@/components/transactions-view";
+import { OrderManagementView } from "@/components/order-management-view";
 
 export default function SalesPage() {
-  return <TransactionsView defaultType="sale" />;
+  return <OrderManagementView mode="sale" />;
 }

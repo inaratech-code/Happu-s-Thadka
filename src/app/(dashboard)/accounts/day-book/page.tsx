@@ -10,9 +10,11 @@ import { useStore } from "@/lib/store";
 import { dayBookForDate } from "@/lib/account-stats";
 import { todayIso } from "@/lib/validate-entry";
 import { formatCurrency } from "@/lib/utils";
+import { useAdminPasswordConfirm } from "@/hooks/use-admin-password-confirm";
 
 export default function DayBookPage() {
   const { state, deleteLedgerEntry } = useStore();
+  const { requestConfirm, modal: adminModal } = useAdminPasswordConfirm();
   const [date, setDate] = useState(todayIso());
 
   const book = useMemo(
@@ -21,7 +23,11 @@ export default function DayBookPage() {
   );
 
   const onDelete = (id: string, description: string) => {
-    if (confirm(`Remove “${description}”?`)) deleteLedgerEntry(id);
+    requestConfirm({
+      title: "Remove ledger entry",
+      message: `Enter admin password to remove “${description}”.`,
+      onConfirm: () => deleteLedgerEntry(id),
+    });
   };
 
   return (
@@ -53,10 +59,10 @@ export default function DayBookPage() {
         <div className="surface-card p-8 text-center">
           <p className="text-sm text-muted-foreground">No entries on this date.</p>
           <Link
-            href="/accounts/ledger"
+            href="/accounts/payments"
             className="inline-flex mt-4 items-center justify-center h-7 px-2.5 text-xs rounded-md bg-gradient-to-b from-amber-500 to-amber-600 text-charcoal-950 font-semibold"
           >
-            Record entry
+            Record payment
           </Link>
         </div>
       ) : (
@@ -75,6 +81,7 @@ export default function DayBookPage() {
           />
         </>
       )}
+      {adminModal}
     </>
   );
 }

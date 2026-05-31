@@ -23,7 +23,7 @@ const LINKS = [
   {
     href: "/accounts/payments",
     label: "Payments",
-    desc: "Money paid to suppliers & bills",
+    desc: "Receive from customers or pay suppliers",
     icon: CreditCard,
   },
   {
@@ -56,11 +56,11 @@ export default function AccountsOverviewPage() {
         subtitle="Day book, payments & financial accounts"
         actions={
           <Link
-            href="/accounts/ledger"
+            href="/accounts/payments"
             className="inline-flex items-center justify-center gap-1.5 h-7 px-2.5 text-xs rounded-md w-full sm:w-auto bg-gradient-to-b from-amber-500 to-amber-600 text-charcoal-950 font-semibold"
           >
             <Plus className="h-4 w-4" />
-            Record entry
+            Record payment
           </Link>
         }
       />

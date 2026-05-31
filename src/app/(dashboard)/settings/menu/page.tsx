@@ -13,6 +13,7 @@ import { menuCategoryEmoji } from "@/lib/menu-images";
 import { validateInventoryItem, imageUrlFieldError } from "@/lib/validate-entry";
 import type { InventoryItem, MenuCategoryDef } from "@/lib/types";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useAdminPasswordConfirm } from "@/hooks/use-admin-password-confirm";
 
 const emptyMenuItem = (category: string): Omit<InventoryItem, "id"> => ({
   name: "",
@@ -36,6 +37,7 @@ export default function MenuSettingsPage() {
     updateInventory,
     deleteInventory,
   } = useStore();
+  const { requestConfirm, modal: adminModal } = useAdminPasswordConfirm();
 
   const categories = state.settings.menuCategories;
   const sellable = state.inventory.filter((i) => i.type === "sellable");
@@ -226,11 +228,17 @@ export default function MenuSettingsPage() {
                 size="sm"
                 variant="outline"
                 className="text-red-400"
-                onClick={() => {
-                  const res = removeMenuCategory(selectedCategory.id);
-                  if (!res.ok) window.alert(res.error);
-                  else setSelectedCategoryId("");
-                }}
+                onClick={() =>
+                  requestConfirm({
+                    title: "Delete menu category",
+                    message: `Enter admin password to delete category “${selectedCategory.name}”.`,
+                    onConfirm: () => {
+                      const res = removeMenuCategory(selectedCategory.id);
+                      if (!res.ok) window.alert(res.error);
+                      else setSelectedCategoryId("");
+                    },
+                  })
+                }
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -300,9 +308,13 @@ export default function MenuSettingsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (window.confirm(`Delete “${item.name}”?`)) deleteInventory(item.id);
-                        }}
+                        onClick={() =>
+                          requestConfirm({
+                            title: "Delete menu item",
+                            message: `Enter admin password to delete “${item.name}”.`,
+                            onConfirm: () => deleteInventory(item.id),
+                          })
+                        }
                         className="p-2 rounded-md hover:bg-red-500/10 text-red-400"
                         aria-label="Delete"
                       >
@@ -466,6 +478,7 @@ export default function MenuSettingsPage() {
           </FormField>
         </form>
       </Modal>
+      {adminModal}
     </div>
   );
 }

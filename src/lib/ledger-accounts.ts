@@ -26,7 +26,13 @@ export function formatNetLabel(net: number): { text: string; settled: boolean; s
 export function partyTypeLabel(type: PartyType): string {
   if (type === "supplier") return "Supplier";
   if (type === "customer") return "Customer";
-  return "Other";
+  return "Worker";
+}
+
+export function partyTypeFilterToPartyType(filter: "customer" | "supplier" | "worker"): PartyType {
+  if (filter === "customer") return "customer";
+  if (filter === "supplier") return "supplier";
+  return "other";
 }
 
 function aggregateForPartyName(entries: LedgerEntry[], partyName: string) {

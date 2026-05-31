@@ -96,17 +96,32 @@ export function validatePaymentEntry(input: {
   party: string;
   accountId: string;
 }): { ok: true; amount: number } | { ok: false; errors: Record<string, string> } {
+  return validateAccountsPayment({ ...input, requireNote: true });
+}
+
+export type AccountsPaymentDirection = "receive" | "pay";
+
+export type AccountsPartyTypeFilter = "customer" | "supplier" | "worker";
+
+export function validateAccountsPayment(input: {
+  description: string;
+  amount: string;
+  date: string;
+  party: string;
+  accountId: string;
+  requireNote?: boolean;
+}): { ok: true; amount: number } | { ok: false; errors: Record<string, string> } {
   const errors: Record<string, string> = {};
 
   if (!input.party.trim()) {
-    errors.party = "Select a party — add accounts under Ledger & parties";
+    errors.party = "Select a party — add accounts under Ledger";
   }
 
   if (!input.accountId) {
-    errors.accountId = "Select which account paid from";
+    errors.accountId = "Select an account";
   }
 
-  if (!input.description.trim()) {
+  if (input.requireNote && !input.description.trim()) {
     errors.description = "Add a short note (invoice, bill no., etc.)";
   }
 
@@ -198,6 +213,111 @@ export function validateStockAdjust(input: {
   }
 
   return { ok: true, delta };
+}
+
+export function validateOrderSale(input: {
+  itemId: string;
+  qty: string;
+  unitPrice: string;
+  maxQty: number;
+  accountId: string;
+  date: string;
+}): { ok: true; qty: number; unitPrice: number } | { ok: false; errors: Record<string, string> } {
+  const errors: Record<string, string> = {};
+
+  if (!input.itemId) {
+    errors.itemId = "Select an item";
+  }
+
+  const qty = parseNonZeroAmount(input.qty);
+  if (qty === null) {
+    errors.qty = "Enter quantity (decimals allowed for g, kg, etc.)";
+  } else if (qty > input.maxQty) {
+    errors.qty = `Only ${input.maxQty} available in stock`;
+  }
+
+  const unitPrice = parseNonZeroAmount(input.unitPrice);
+  if (unitPrice === null) {
+    errors.unitPrice = "Enter selling price per unit";
+  }
+
+  if (!input.accountId) {
+    errors.accountId = "Select an account";
+  }
+
+  if (!input.date) {
+    errors.date = "Pick a date";
+  }
+
+  return Object.keys(errors).length === 0
+    ? { ok: true, qty: qty!, unitPrice: unitPrice! }
+    : { ok: false, errors };
+}
+
+export function validateOrderPurchase(input: {
+  itemId: string;
+  qty: string;
+  unitPrice: string;
+  accountId: string;
+  date: string;
+}): { ok: true; qty: number; unitPrice: number } | { ok: false; errors: Record<string, string> } {
+  const errors: Record<string, string> = {};
+
+  if (!input.itemId) {
+    errors.itemId = "Select an item";
+  }
+
+  const qty = parseNonZeroAmount(input.qty);
+  if (qty === null) {
+    errors.qty = "Enter quantity (decimals allowed for g, kg, etc.)";
+  }
+
+  const unitPrice = parsePositiveAmount(input.unitPrice);
+  if (unitPrice === null) {
+    errors.unitPrice = "Enter purchase price per unit";
+  }
+
+  if (!input.accountId) {
+    errors.accountId = "Select an account";
+  }
+
+  if (!input.date) {
+    errors.date = "Pick a date";
+  }
+
+  return Object.keys(errors).length === 0
+    ? { ok: true, qty: qty!, unitPrice: unitPrice! }
+    : { ok: false, errors };
+}
+
+export function validateOrderExpense(input: {
+  description: string;
+  amount: string;
+  accountId: string;
+  date: string;
+}): { ok: true; amount: number } | { ok: false; errors: Record<string, string> } {
+  const errors: Record<string, string> = {};
+
+  if (!input.description.trim()) {
+    errors.description = "Describe this expense";
+  }
+
+  const amount = parseNonZeroAmount(input.amount);
+  if (amount === null) {
+    errors.amount = "Enter an amount greater than zero";
+  }
+
+  if (!input.accountId) {
+    errors.accountId = "Select an account";
+  }
+
+  if (!input.date) {
+    errors.date = "Pick a date";
+  }
+
+  return Object.keys(errors).length === 0
+    ? { ok: true, amount: amount! }
+    : { ok: false, errors };
 }
 
 export function validateStockSell(input: {

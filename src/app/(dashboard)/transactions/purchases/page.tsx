@@ -1,7 +1,7 @@
 "use client";
 
-import { TransactionsView } from "@/components/transactions-view";
+import { OrderManagementView } from "@/components/order-management-view";
 
 export default function PurchasesPage() {
-  return <TransactionsView defaultType="purchase" />;
+  return <OrderManagementView mode="purchase" />;
 }

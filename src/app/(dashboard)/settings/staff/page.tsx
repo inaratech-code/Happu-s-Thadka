@@ -13,6 +13,7 @@ import type { StaffMember, StaffRole } from "@/lib/types";
 import type { AppPermission } from "@/lib/permissions";
 import { canManageStaff } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import { useAdminPasswordConfirm } from "@/hooks/use-admin-password-confirm";
 
 type StaffForm = {
   name: string;
@@ -35,6 +36,7 @@ const emptyForm = (): StaffForm => ({
 export default function StaffPage() {
   const { session } = useAuth();
   const { state, addStaff, updateStaff, deleteStaff } = useStore();
+  const { requestConfirm, modal: adminModal } = useAdminPasswordConfirm();
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -194,12 +196,16 @@ export default function StaffPage() {
                     variant="ghost"
                     size="sm"
                     className="text-red-400"
-                    onClick={() => {
-                      if (confirm(`Remove ${member.name}? They will no longer be able to sign in.`)) {
-                        const res = deleteStaff(member.id);
-                        if (!res.ok) alert(res.error);
-                      }
-                    }}
+                    onClick={() =>
+                      requestConfirm({
+                        title: "Remove staff member",
+                        message: `Enter admin password to remove ${member.name}. They will no longer be able to sign in.`,
+                        onConfirm: () => {
+                          const res = deleteStaff(member.id);
+                          if (!res.ok) window.alert(res.error);
+                        },
+                      })
+                    }
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -303,6 +309,7 @@ export default function StaffPage() {
           )}
         </form>
       </Modal>
+      {adminModal}
     </div>
   );
 }

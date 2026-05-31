@@ -2,17 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "@/lib/motion";
-import { Plus, Pencil, ShoppingCart, SlidersHorizontal, Trash2 } from "lucide-react";
-import { PageHeader, Badge, Input, Select } from "@/components/ui/primitives";
+import { Plus, Pencil, ShoppingCart, SlidersHorizontal, Trash2, Search } from "lucide-react";
+import { PageHeader, Badge, Input } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { Modal, ModalActions } from "@/components/modal";
-import { FormField, QuickChips, PresetChips } from "@/components/forms/form-field";
+import { FormField, QuickChips } from "@/components/forms/form-field";
 import { useStore } from "@/lib/store";
 import { isLowStock } from "@/lib/store-utils";
 import type { InventoryItem } from "@/lib/types";
 import {
   INVENTORY_CATEGORY_SUGGESTIONS,
-  INVENTORY_UNITS,
   STOCK_ADJUST_PRESETS,
 } from "@/lib/entry-presets";
 import {
@@ -22,8 +21,10 @@ import {
   imageUrlFieldError,
 } from "@/lib/validate-entry";
 import { MenuItemThumb } from "@/components/menu-item-thumb";
+import { InventoryItemForm } from "@/components/inventory-item-form";
 import { resolveMenuImage } from "@/lib/menu-images";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useAdminPasswordConfirm } from "@/hooks/use-admin-password-confirm";
 
 const emptyItem = (): Omit<InventoryItem, "id"> => ({
   name: "",
@@ -45,6 +46,7 @@ export default function InventoryPage() {
     adjustStock,
     addTransaction,
   } = useStore();
+  const { requestConfirm, modal: adminModal } = useAdminPasswordConfirm();
 
   const [addOpen, setAddOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -58,8 +60,19 @@ export default function InventoryPage() {
   const [adjustErrors, setAdjustErrors] = useState<Record<string, string>>({});
   const [sellQty, setSellQty] = useState("1");
   const [sellErrors, setSellErrors] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState("");
 
   const items = state.inventory;
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => {
+      const haystack = [item.name, item.category, item.unit, item.type]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [items, search]);
   const lowCount = items.filter(isLowStock).length;
   const stockValue = items.reduce((s, i) => s + i.stockOnHand * i.avgCost, 0);
 
@@ -176,214 +189,17 @@ export default function InventoryPage() {
     setAdjustErrors({});
   };
 
-  const ItemForm = ({ id }: { id: string }) => (
-    <form id={id} onSubmit={saveItem} className="space-y-3">
-      <FormField label="Item name" required error={formErrors.name}>
-        <Input
-          autoFocus
-          placeholder="e.g. Chicken breast"
-          value={form.name}
-          onChange={(e) => {
-            setForm((f) => ({ ...f, name: e.target.value }));
-            setFormErrors((err) => ({ ...err, name: "" }));
-          }}
-        />
-      </FormField>
-
-      <FormField label="Category" required error={formErrors.category}>
-        {form.type === "sellable" && menuCategories.length > 0 ? (
-          <Select
-            value={form.category || menuCategories[0]?.name || ""}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, category: e.target.value }));
-              setFormErrors((err) => ({ ...err, category: "" }));
-            }}
-            className="w-full"
-          >
-            {categoryOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <>
-            <Input
-              list={`${id}-categories`}
-              placeholder="Pick or type category"
-              value={form.category}
-              onChange={(e) => {
-                setForm((f) => ({ ...f, category: e.target.value }));
-                setFormErrors((err) => ({ ...err, category: "" }));
-              }}
-            />
-            <datalist id={`${id}-categories`}>
-              {categoryOptions.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-            <PresetChips
-              className="mt-2"
-              presets={INVENTORY_CATEGORY_SUGGESTIONS}
-              onPick={(category) => {
-                setForm((f) => ({ ...f, category }));
-                setFormErrors((err) => ({ ...err, category: "" }));
-              }}
-            />
-          </>
-        )}
-        {form.type === "sellable" && menuCategories.length === 0 && (
-          <p className="text-[11px] text-muted-foreground mt-1">
-            <a href="/settings/menu" className="text-[var(--primary)] underline">
-              Add menu categories
-            </a>{" "}
-            for a fixed list on POS.
-          </p>
-        )}
-      </FormField>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <FormField
-          label="Stock on hand"
-          required
-          error={formErrors.stockOnHand}
-          hint="Starting quantity you have now"
-        >
-          <Input
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step="any"
-            value={form.stockOnHand === 0 ? "" : form.stockOnHand}
-            onChange={(e) => {
-              const stockOnHand = parseFloat(e.target.value) || 0;
-              setForm((f) => ({ ...f, stockOnHand }));
-              setFormErrors((err) => ({ ...err, stockOnHand: "" }));
-            }}
-          />
-        </FormField>
-
-        <FormField label="Unit" required error={formErrors.unit}>
-          <Select
-            value={form.unit}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, unit: e.target.value }));
-              setFormErrors((err) => ({ ...err, unit: "" }));
-            }}
-            className="w-full"
-          >
-            {INVENTORY_UNITS.map((u) => (
-              <option key={u} value={u}>
-                {u}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-      </div>
-
-      {form.type === "sellable" && (
-        <FormField
-          label="Menu image URL"
-          error={formErrors.imageUrl}
-          hint="Optional. https:// link or path like /menu-images/item.jpg"
-        >
-          <Input
-            value={form.imageUrl ?? ""}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, imageUrl: e.target.value }));
-              setFormErrors((err) => ({ ...err, imageUrl: "" }));
-            }}
-            placeholder="https://…"
-          />
-        </FormField>
-      )}
-
-      <FormField label="Item type" hint="Sellable = menu/POS · Consumable = kitchen supplies only">
-        <Select
-          value={form.type}
-          onChange={(e) => {
-            const type = e.target.value as InventoryItem["type"];
-            setForm((f) => ({
-              ...f,
-              type,
-              sellingPrice: type === "consumable" ? 0 : f.sellingPrice,
-            }));
-          }}
-          className="w-full"
-        >
-          <option value="sellable">Sellable (menu / POS)</option>
-          <option value="consumable">Consumable (internal use)</option>
-        </Select>
-      </FormField>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <FormField label="Avg cost (₹)" error={formErrors.pricing}>
-          <Input
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step="any"
-            placeholder="Purchase cost per unit"
-            value={form.avgCost === 0 ? "" : form.avgCost}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, avgCost: parseFloat(e.target.value) || 0 }))
-            }
-          />
-        </FormField>
-
-        {form.type === "sellable" ? (
-          <FormField label="Selling price (₹)" required error={formErrors.sellingPrice}>
-            <Input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step="any"
-              placeholder="Menu price"
-              value={form.sellingPrice === 0 ? "" : form.sellingPrice}
-              onChange={(e) => {
-                setForm((f) => ({ ...f, sellingPrice: parseFloat(e.target.value) || 0 }));
-                setFormErrors((err) => ({ ...err, sellingPrice: "" }));
-              }}
-            />
-          </FormField>
-        ) : (
-          <div className="flex items-end pb-1">
-            <p className="text-[11px] text-muted-foreground">No selling price for consumables</p>
-          </div>
-        )}
-      </div>
-
-      <FormField
-        label="Reorder alert at"
-        error={formErrors.reorderAt}
-        hint="Warn when stock falls to this level or below"
-      >
-        <Input
-          type="number"
-          inputMode="decimal"
-          min={0}
-          step="any"
-          value={form.reorderAt === 0 ? "" : form.reorderAt}
-          onChange={(e) => {
-            setForm((f) => ({ ...f, reorderAt: parseFloat(e.target.value) || 0 }));
-            setFormErrors((err) => ({ ...err, reorderAt: "" }));
-          }}
-        />
-      </FormField>
-
-      {!editId && (
-        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-          <input
-            type="checkbox"
-            checked={addAnother}
-            onChange={(e) => setAddAnother(e.target.checked)}
-            className="rounded border-[var(--border)]"
-          />
-          Save and add another item
-        </label>
-      )}
-    </form>
-  );
+  const itemFormProps = {
+    form,
+    setForm,
+    formErrors,
+    setFormErrors,
+    categoryOptions,
+    menuCategories,
+    addAnother,
+    setAddAnother,
+    onSubmit: saveItem,
+  };
 
   const stats = [
     { label: "Total Items", value: String(items.length) },
@@ -431,6 +247,19 @@ export default function InventoryPage() {
         ))}
       </div>
 
+      {items.length > 0 && (
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search items by name, category, or unit…"
+            className="pl-9"
+          />
+        </div>
+      )}
+
       {items.length === 0 ? (
         <div className="surface-card p-8 sm:p-12 text-center">
           <p className="text-muted-foreground text-sm">No inventory items yet.</p>
@@ -439,9 +268,16 @@ export default function InventoryPage() {
             Add your first item
           </Button>
         </div>
+      ) : filteredItems.length === 0 ? (
+        <div className="surface-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">No items match “{search}”.</p>
+          <Button className="mt-4" size="sm" variant="ghost" onClick={() => setSearch("")}>
+            Clear search
+          </Button>
+        </div>
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {items.map((item, i) => {
+          {filteredItems.map((item, i) => {
             const stockValueItem = item.stockOnHand * item.avgCost;
             const low = isLowStock(item);
             const inStock = item.stockOnHand > item.reorderAt;
@@ -543,9 +379,13 @@ export default function InventoryPage() {
                     variant="ghost"
                     size="sm"
                     className="text-red-400 hover:text-red-300 ml-auto"
-                    onClick={() => {
-                      if (confirm(`Delete "${item.name}"?`)) deleteInventory(item.id);
-                    }}
+                    onClick={() =>
+                      requestConfirm({
+                        title: "Delete inventory item",
+                        message: `Enter admin password to delete “${item.name}”.`,
+                        onConfirm: () => deleteInventory(item.id),
+                      })
+                    }
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -569,7 +409,11 @@ export default function InventoryPage() {
           />
         }
       >
-        <ItemForm id="inventory-add-form" />
+        <InventoryItemForm
+          id="inventory-add-form"
+          {...itemFormProps}
+          autoFocusName
+        />
       </Modal>
 
       <Modal
@@ -585,7 +429,7 @@ export default function InventoryPage() {
           />
         }
       >
-        <ItemForm id="inventory-edit-form" />
+        <InventoryItemForm id="inventory-edit-form" {...itemFormProps} editId={editId} />
       </Modal>
 
       <Modal
@@ -708,6 +552,7 @@ export default function InventoryPage() {
           </form>
         )}
       </Modal>
+      {adminModal}
     </div>
   );
 }

@@ -42,3 +42,16 @@ export const PAYMENT_METHOD_OPTIONS = [
 ];
 
 export const STOCK_ADJUST_PRESETS = [-10, -5, -1, 1, 5, 10, 25] as const;
+
+export const EXPENSE_DESCRIPTION_PRESETS = [
+  "Rent",
+  "Electricity",
+  "Gas",
+  "Water",
+  "Staff salary",
+  "Cleaning supplies",
+  "Maintenance",
+  "Marketing",
+  "Petty cash",
+  "Miscellaneous",
+] as const;

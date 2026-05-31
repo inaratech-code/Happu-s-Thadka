@@ -20,6 +20,7 @@ import type {
   LedgerEntry,
   MenuCategoryDef,
   Party,
+  PaymentMethod,
   PosOrder,
   StaffMember,
   StockMovement,
@@ -205,6 +206,38 @@ type StoreContextValue = {
   deleteInventory: (id: string) => void;
   adjustStock: (id: string, delta: number, note: string, type?: StockMovement["type"]) => void;
   addTransaction: (tx: Omit<Transaction, "id" | "date"> & { date?: string }) => void;
+  recordInventorySale: (input: {
+    itemId: string;
+    stockQty: number;
+    billQty: number;
+    billUnit: string;
+    unitPrice: number;
+    date: string;
+    party: string;
+    accountId: string;
+    paymentMethod: PaymentMethod;
+    paymentType: "cash" | "credit";
+  }) => { ok: true; transactionId: string } | { ok: false; error: string };
+  recordInventoryPurchase: (input: {
+    itemId: string;
+    stockQty: number;
+    billQty: number;
+    billUnit: string;
+    unitPrice: number;
+    date: string;
+    party: string;
+    accountId: string;
+    paymentMethod: PaymentMethod;
+  }) => { ok: true; transactionId: string } | { ok: false; error: string };
+  recordExpense: (input: {
+    description: string;
+    amount: number;
+    date: string;
+    party: string;
+    accountId: string;
+    paymentMethod: PaymentMethod;
+    category?: string;
+  }) => { ok: true; transactionId: string } | { ok: false; error: string };
   deleteTransaction: (id: string) => void;
   addLedgerEntry: (entry: Omit<LedgerEntry, "id">) => void;
   deleteLedgerEntry: (id: string) => void;
@@ -478,6 +511,249 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ...s,
         transactions: s.transactions.filter((t) => t.id !== id),
       }));
+    },
+    [patch]
+  );
+
+  const recordInventorySale = useCallback(
+    (input: {
+      itemId: string;
+      stockQty: number;
+      billQty: number;
+      billUnit: string;
+      unitPrice: number;
+      date: string;
+      party: string;
+      accountId: string;
+      paymentMethod: PaymentMethod;
+      paymentType: "cash" | "credit";
+    }) => {
+      const item = state.inventory.find((i) => i.id === input.itemId);
+      if (!item) return { ok: false as const, error: "Item not found" };
+      if (input.stockQty > item.stockOnHand) {
+        return {
+          ok: false as const,
+          error: `Only ${item.stockOnHand} ${item.unit} in stock`,
+        };
+      }
+
+      const amount = input.billQty * input.unitPrice;
+      const date = normalizeIsoDate(input.date);
+      const party = input.party.trim() || "Cash sales & expenses";
+      let transactionId = "";
+
+      patch((s) => {
+        const current = s.inventory.find((i) => i.id === input.itemId);
+        if (!current || input.stockQty > current.stockOnHand) return s;
+
+        transactionId = `TX-${String(s.txCounter).padStart(4, "0")}`;
+        const description = `Sold ${input.billQty} ${input.billUnit} — ${current.name}`;
+        const cashId = defaultCashAccountId(s.financialAccounts);
+        const ledgerEntry: LedgerEntry | null =
+          input.paymentType === "cash"
+            ? normalizeLedgerEntry(
+                {
+                  id: "",
+                  date,
+                  description,
+                  party,
+                  credit: amount,
+                  debit: 0,
+                  accountId: input.accountId,
+                  paymentMethod: input.paymentMethod,
+                  kind: "receipt",
+                },
+                cashId
+              )
+            : null;
+
+        return {
+          ...s,
+          txCounter: s.txCounter + 1,
+          inventory: s.inventory.map((i) =>
+            i.id === input.itemId
+              ? { ...i, stockOnHand: Math.max(0, i.stockOnHand - input.stockQty) }
+              : i
+          ),
+          stockMovements: [
+            {
+              id: uid("mov"),
+              itemId: input.itemId,
+              itemName: current.name,
+              type: "sale" as const,
+              qty: input.stockQty,
+              note: `Sale: ${input.billQty} ${input.billUnit}`,
+              date,
+            },
+            ...s.stockMovements,
+          ],
+          transactions: [
+            {
+              id: transactionId,
+              type: "sale" as const,
+              description,
+              amount,
+              date,
+              category: party,
+            },
+            ...s.transactions,
+          ],
+          ledgerEntries: ledgerEntry
+            ? [{ ...ledgerEntry, id: uid("led") }, ...s.ledgerEntries]
+            : s.ledgerEntries,
+        };
+      });
+
+      return transactionId
+        ? ({ ok: true as const, transactionId })
+        : ({ ok: false as const, error: "Could not record sale" });
+    },
+    [patch, state.inventory]
+  );
+
+  const recordInventoryPurchase = useCallback(
+    (input: {
+      itemId: string;
+      stockQty: number;
+      billQty: number;
+      billUnit: string;
+      unitPrice: number;
+      date: string;
+      party: string;
+      accountId: string;
+      paymentMethod: PaymentMethod;
+    }) => {
+      const item = state.inventory.find((i) => i.id === input.itemId);
+      if (!item) return { ok: false as const, error: "Item not found" };
+
+      const amount = input.billQty * input.unitPrice;
+      const date = normalizeIsoDate(input.date);
+      const party = input.party.trim() || "Supplier";
+      let transactionId = "";
+
+      patch((s) => {
+        const current = s.inventory.find((i) => i.id === input.itemId);
+        if (!current) return s;
+
+        transactionId = `TX-${String(s.txCounter).padStart(4, "0")}`;
+        const description = `Purchased ${input.billQty} ${input.billUnit} — ${current.name}`;
+        const nextStock = current.stockOnHand + input.stockQty;
+        const nextAvgCost =
+          nextStock > 0
+            ? (current.stockOnHand * current.avgCost + amount) / nextStock
+            : input.unitPrice;
+        const cashId = defaultCashAccountId(s.financialAccounts);
+        const ledgerEntry = normalizeLedgerEntry(
+          {
+            id: "",
+            date,
+            description,
+            party,
+            debit: amount,
+            credit: 0,
+            accountId: input.accountId,
+            paymentMethod: input.paymentMethod,
+            kind: "payment",
+          },
+          cashId
+        );
+
+        return {
+          ...s,
+          txCounter: s.txCounter + 1,
+          inventory: s.inventory.map((i) =>
+            i.id === input.itemId
+              ? { ...i, stockOnHand: nextStock, avgCost: nextAvgCost }
+              : i
+          ),
+          stockMovements: [
+            {
+              id: uid("mov"),
+              itemId: input.itemId,
+              itemName: current.name,
+              type: "in" as const,
+              qty: input.stockQty,
+              note: `Purchase: ${input.billQty} ${input.billUnit}`,
+              date,
+            },
+            ...s.stockMovements,
+          ],
+          transactions: [
+            {
+              id: transactionId,
+              type: "purchase" as const,
+              description,
+              amount,
+              date,
+              category: party,
+            },
+            ...s.transactions,
+          ],
+          ledgerEntries: [{ ...ledgerEntry, id: uid("led") }, ...s.ledgerEntries],
+        };
+      });
+
+      return transactionId
+        ? ({ ok: true as const, transactionId })
+        : ({ ok: false as const, error: "Could not record purchase" });
+    },
+    [patch, state.inventory]
+  );
+
+  const recordExpense = useCallback(
+    (input: {
+      description: string;
+      amount: number;
+      date: string;
+      party: string;
+      accountId: string;
+      paymentMethod: PaymentMethod;
+      category?: string;
+    }) => {
+      const date = normalizeIsoDate(input.date);
+      const party = input.party.trim() || "Cash sales & expenses";
+      const description = input.description.trim();
+      let transactionId = "";
+
+      patch((s) => {
+        transactionId = `TX-${String(s.txCounter).padStart(4, "0")}`;
+        const cashId = defaultCashAccountId(s.financialAccounts);
+        const ledgerEntry = normalizeLedgerEntry(
+          {
+            id: "",
+            date,
+            description,
+            party,
+            debit: input.amount,
+            credit: 0,
+            accountId: input.accountId,
+            paymentMethod: input.paymentMethod,
+            kind: "payment",
+          },
+          cashId
+        );
+
+        return {
+          ...s,
+          txCounter: s.txCounter + 1,
+          transactions: [
+            {
+              id: transactionId,
+              type: "expense" as const,
+              description,
+              amount: input.amount,
+              date,
+              category: input.category?.trim() || party,
+            },
+            ...s.transactions,
+          ],
+          ledgerEntries: [{ ...ledgerEntry, id: uid("led") }, ...s.ledgerEntries],
+        };
+      });
+
+      return transactionId
+        ? ({ ok: true as const, transactionId })
+        : ({ ok: false as const, error: "Could not record expense" });
     },
     [patch]
   );
@@ -1173,6 +1449,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteInventory,
       adjustStock,
       addTransaction,
+      recordInventorySale,
+      recordInventoryPurchase,
+      recordExpense,
       deleteTransaction,
       addLedgerEntry,
       deleteLedgerEntry,
@@ -1212,6 +1491,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteInventory,
       adjustStock,
       addTransaction,
+      recordInventorySale,
+      recordInventoryPurchase,
+      recordExpense,
       deleteTransaction,
       addLedgerEntry,
       deleteLedgerEntry,

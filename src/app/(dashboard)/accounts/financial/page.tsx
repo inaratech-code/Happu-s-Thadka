@@ -11,6 +11,7 @@ import { accountBalance } from "@/lib/account-stats";
 import { validateFinancialAccount } from "@/lib/validate-entry";
 import type { FinancialAccount, FinancialAccountType } from "@/lib/types";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useAdminPasswordConfirm } from "@/hooks/use-admin-password-confirm";
 
 const TYPE_LABELS: Record<FinancialAccountType, string> = {
   cash: "Cash",
@@ -28,6 +29,7 @@ const emptyAccountForm = () => ({
 export default function FinancialAccountsPage() {
   const { state, addFinancialAccount, updateFinancialAccount, deleteFinancialAccount } =
     useStore();
+  const { requestConfirm, modal: adminModal } = useAdminPasswordConfirm();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<FinancialAccount | null>(null);
   const [form, setForm] = useState(emptyAccountForm);
@@ -136,9 +138,13 @@ export default function FinancialAccountsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm(`Delete “${account.name}”?`)) handleDelete(account);
-                    }}
+                    onClick={() =>
+                      requestConfirm({
+                        title: "Delete financial account",
+                        message: `Enter admin password to delete “${account.name}”.`,
+                        onConfirm: () => handleDelete(account),
+                      })
+                    }
                     className="p-1.5 rounded text-muted-foreground hover:text-red-400"
                     aria-label="Delete account"
                   >
@@ -247,6 +253,7 @@ export default function FinancialAccountsPage() {
           </FormField>
         </form>
       </Modal>
+      {adminModal}
     </>
   );
 }

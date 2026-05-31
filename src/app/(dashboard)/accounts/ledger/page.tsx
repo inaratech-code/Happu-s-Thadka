@@ -1,16 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Plus, Receipt } from "lucide-react";
 import { PageHeader } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { LedgerAccountCard } from "@/components/accounts/ledger-account-card";
 import { LedgerRowsMobile, LedgerRowsTable } from "@/components/accounts/ledger-rows";
-import {
-  RecordEntryModal,
-  emptyLedgerForm,
-  type LedgerFormState,
-} from "@/components/accounts/record-entry-modal";
 import {
   PartyFormModal,
   emptyPartyForm,
@@ -18,26 +14,21 @@ import {
 } from "@/components/accounts/party-form-modal";
 import { CASH_SALES_PARTY_NAME } from "@/lib/default-parties";
 import { useStore } from "@/lib/store";
-import { defaultCashAccountId } from "@/lib/default-accounts";
 import { buildLedgerAccountSummaries, entriesForParty } from "@/lib/ledger-accounts";
 import { runningLedgerBalances } from "@/lib/account-stats";
-import { validateLedgerEntry } from "@/lib/validate-entry";
 import type { Party } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { useAdminPasswordConfirm } from "@/hooks/use-admin-password-confirm";
 
 export default function LedgerPage() {
-  const { state, addLedgerEntry, deleteLedgerEntry, addParty, updateParty, deleteParty } =
-    useStore();
-  const cashId = defaultCashAccountId(state.financialAccounts);
+  const { state, deleteLedgerEntry, addParty, updateParty, deleteParty } = useStore();
+  const { requestConfirm, modal: adminModal } = useAdminPasswordConfirm();
 
   const [selectedPartyName, setSelectedPartyName] = useState<string | null>(null);
   const [partyModalOpen, setPartyModalOpen] = useState(false);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
   const [partyForm, setPartyForm] = useState<PartyFormState>(emptyPartyForm);
   const [partyErrors, setPartyErrors] = useState<Record<string, string>>({});
-
-  const [entryModalOpen, setEntryModalOpen] = useState(false);
-  const [entryForm, setEntryForm] = useState<LedgerFormState>(() => emptyLedgerForm(cashId));
-  const [entryErrors, setEntryErrors] = useState<Record<string, string>>({});
 
   const accounts = useMemo(
     () => buildLedgerAccountSummaries(state.parties, state.ledgerEntries),
@@ -119,47 +110,42 @@ export default function LedgerPage() {
   const handleDeleteAccount = (id: string, name: string) => {
     const hasEntries = state.ledgerEntries.some((e) => (e.party ?? "").trim() === name);
     const msg = hasEntries
-      ? `Delete “${name}”? Ledger transactions will keep the name on old entries.`
-      : `Delete “${name}”?`;
-    if (!confirm(msg)) return;
-    const res = deleteParty(id);
-    if (!res.ok) {
-      alert(res.error);
-      return;
-    }
-    if (selectedPartyName === name) setSelectedPartyName(null);
+      ? `Enter admin password to delete “${name}”. Ledger transactions will keep the name on old entries.`
+      : `Enter admin password to delete “${name}”.`;
+    requestConfirm({
+      title: "Delete party",
+      message: msg,
+      onConfirm: () => {
+        const res = deleteParty(id);
+        if (!res.ok) window.alert(res.error);
+        else if (selectedPartyName === name) setSelectedPartyName(null);
+      },
+    });
   };
 
-  const openRecordEntry = (prefillParty?: string) => {
-    setEntryForm({
-      ...emptyLedgerForm(defaultCashAccountId(state.financialAccounts)),
-      party: prefillParty ?? "",
-    });
-    setEntryErrors({});
-    setEntryModalOpen(true);
-  };
-
-  const submitEntry = () => {
-    const result = validateLedgerEntry({ ...entryForm, accountId: entryForm.accountId });
-    if (!result.ok) {
-      setEntryErrors(result.errors);
-      return;
+  const paymentLink = (partyName?: string, party?: Party) => {
+    const params = new URLSearchParams();
+    if (partyName) params.set("party", partyName);
+    if (party) {
+      const filter =
+        party.type === "customer"
+          ? "customer"
+          : party.type === "supplier"
+            ? "supplier"
+            : "worker";
+      params.set("partyType", filter);
+      params.set("direction", party.type === "customer" ? "receive" : "pay");
     }
-    addLedgerEntry({
-      date: entryForm.date,
-      description: entryForm.description.trim(),
-      debit: entryForm.mode === "out" ? result.amount : 0,
-      credit: entryForm.mode === "in" ? result.amount : 0,
-      accountId: entryForm.accountId,
-      party: entryForm.party.trim() || undefined,
-      kind: entryForm.mode === "in" ? "receipt" : "payment",
-    });
-    setEntryForm(emptyLedgerForm(defaultCashAccountId(state.financialAccounts)));
-    setEntryModalOpen(false);
+    const q = params.toString();
+    return q ? `/accounts/payments?${q}` : "/accounts/payments";
   };
 
   const onDeleteEntry = (id: string, description: string) => {
-    if (confirm(`Remove “${description}”?`)) deleteLedgerEntry(id);
+    requestConfirm({
+      title: "Remove ledger entry",
+      message: `Enter admin password to remove “${description}”.`,
+      onConfirm: () => deleteLedgerEntry(id),
+    });
   };
 
   return (
@@ -169,15 +155,12 @@ export default function LedgerPage() {
         subtitle="Add parties here — each card shows Dr, Cr and net balance"
         actions={
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full sm:w-auto"
-              onClick={() => openRecordEntry(selectedPartyName ?? undefined)}
-            >
-              <Receipt className="h-4 w-4" />
-              Record entry
-            </Button>
+            <Link href="/accounts/payments" className="w-full sm:w-auto">
+              <Button size="sm" variant="outline" className="w-full">
+                <Receipt className="h-4 w-4" />
+                Record payment
+              </Button>
+            </Link>
             <Button size="sm" className="w-full sm:w-auto" onClick={openNewAccount}>
               <Plus className="h-4 w-4" />
               New account
@@ -224,10 +207,20 @@ export default function LedgerPage() {
               <h2 className="text-sm font-semibold text-foreground">{selectedPartyName}</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">Transactions for this account</p>
             </div>
-            <Button size="sm" variant="secondary" onClick={() => openRecordEntry(selectedPartyName)}>
+            <Link
+              href={paymentLink(
+                selectedPartyName,
+                state.parties.find((p) => p.name === selectedPartyName)
+              )}
+              className={cn(
+                "inline-flex items-center justify-center gap-1.5 h-7 px-2.5 text-xs rounded-md",
+                "bg-[var(--surface)] text-foreground border border-[var(--border)]",
+                "hover:bg-[var(--nav-hover)] hover:border-amber-500/20"
+              )}
+            >
               <Plus className="h-3.5 w-3.5" />
-              Add entry
-            </Button>
+              Record payment
+            </Link>
           </div>
 
           {selectedRows.length === 0 ? (
@@ -265,19 +258,7 @@ export default function LedgerPage() {
         errors={partyErrors}
         onSubmit={submitParty}
       />
-
-      <RecordEntryModal
-        open={entryModalOpen}
-        onClose={() => setEntryModalOpen(false)}
-        form={entryForm}
-        setForm={setEntryForm}
-        errors={entryErrors}
-        setErrors={setEntryErrors}
-        accounts={state.financialAccounts}
-        parties={state.parties}
-        previewBalance={null}
-        onSubmit={submitEntry}
-      />
+      {adminModal}
     </>
   );
 }

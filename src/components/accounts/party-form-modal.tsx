@@ -8,7 +8,7 @@ import type { Party, PartyType } from "@/lib/types";
 const TYPE_LABELS: Record<PartyType, string> = {
   supplier: "Supplier (you pay them)",
   customer: "Customer (pays you)",
-  other: "Other",
+  other: "Worker / other",
 };
 
 export type PartyFormState = {

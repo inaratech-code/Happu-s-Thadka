@@ -71,6 +71,17 @@ export function paymentEntries(entries: LedgerEntry[]) {
   return entries.filter((e) => e.kind === "payment" || (e.debit > 0 && !e.credit));
 }
 
+/** Receive + pay lines recorded through Accounts → Payments */
+export function paymentHistoryEntries(entries: LedgerEntry[]) {
+  return entries.filter(
+    (e) =>
+      e.kind === "payment" ||
+      e.kind === "receipt" ||
+      (e.debit > 0 && !e.credit) ||
+      (e.credit > 0 && !e.debit)
+  );
+}
+
 export function accountBalance(account: FinancialAccount, entries: LedgerEntry[]) {
   const movement = entries
     .filter((e) => e.accountId === account.id)

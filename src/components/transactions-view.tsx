@@ -10,6 +10,7 @@ import { Modal, ModalActions } from "@/components/modal";
 import { useStore } from "@/lib/store";
 import type { Transaction } from "@/lib/types";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useAdminPasswordConfirm } from "@/hooks/use-admin-password-confirm";
 
 const TABS = [
   { label: "Overview", href: "/transactions", type: null as Transaction["type"] | null },
@@ -21,6 +22,7 @@ const TABS = [
 export function TransactionsView({ defaultType }: { defaultType?: Transaction["type"] }) {
   const pathname = usePathname();
   const { state, addTransaction, deleteTransaction } = useStore();
+  const { requestConfirm, modal: adminModal } = useAdminPasswordConfirm();
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({
     type: (defaultType ?? "sale") as Transaction["type"],
@@ -151,7 +153,13 @@ export function TransactionsView({ defaultType }: { defaultType?: Transaction["t
                   <td className="text-right">
                     <button
                       type="button"
-                      onClick={() => deleteTransaction(tx.id)}
+                      onClick={() =>
+                        requestConfirm({
+                          title: "Delete transaction",
+                          message: `Enter admin password to delete “${tx.description}”.`,
+                          onConfirm: () => deleteTransaction(tx.id),
+                        })
+                      }
                       className="p-1.5 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 rounded-md hover:bg-[var(--nav-hover)]"
                       aria-label="Delete"
                     >
@@ -221,6 +229,7 @@ export function TransactionsView({ defaultType }: { defaultType?: Transaction["t
           </div>
         </div>
       </Modal>
+      {adminModal}
     </div>
   );
 }
