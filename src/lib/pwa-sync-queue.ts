@@ -1,4 +1,5 @@
 import type { AppState } from "@/lib/types";
+import { isDatabaseConfiguredClient } from "@/lib/env";
 
 export const SYNC_CACHE_NAME = "happus-tadka-sync-v1";
 export const SYNC_QUEUE_KEY = "/__happus_sync_queue__";
@@ -85,4 +86,30 @@ export async function registerPeriodicSync() {
   } catch {
     /* Permission denied or unsupported */
   }
+}
+
+/** Drain queued offline saves when the app is back online. */
+export async function flushClientSyncQueue(): Promise<void> {
+  if (!isDatabaseConfiguredClient() || !navigator.onLine) return;
+
+  let queue = await readSyncQueue();
+  if (queue.length === 0) return;
+
+  const remaining: QueueEntry[] = [];
+  for (const entry of queue) {
+    try {
+      const res = await fetch("/api/state", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry.state),
+        cache: "no-store",
+      });
+      if (!res.ok && res.status !== 401) remaining.push(entry);
+    } catch {
+      remaining.push(entry);
+    }
+  }
+
+  await writeSyncQueue(remaining);
 }

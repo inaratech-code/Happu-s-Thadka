@@ -37,6 +37,7 @@ import {
 import { hashPassword } from "./password";
 import { ALL_PERMISSIONS } from "./permissions";
 import { loadAppStateClient, saveAppStateClient, isRemoteDataSource } from "./data-source";
+import { flushClientSyncQueue } from "./pwa-sync-queue";
 import { useAuth } from "@/components/auth-provider";
 import { normalizeIsoDate } from "./iso-date";
 import { formatPosOrderRef } from "./pos-order";
@@ -295,6 +296,7 @@ type StoreContextValue = {
   ensureDefaultAdmin: () => void;
   hydrated: boolean;
   refreshData: () => void;
+  flushPendingSave: () => Promise<void>;
 };
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -305,8 +307,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const sessionRef = useRef(session);
   sessionRef.current = session;
+  const hydratedRef = useRef(hydrated);
+  hydratedRef.current = hydrated;
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef<AppState | null>(null);
+
+  const canPersistToServer = useCallback(() => {
+    if (!hydratedRef.current) return false;
+    if (isRemoteDataSource()) return Boolean(sessionRef.current);
+    return true;
+  }, []);
+
+  const flushPendingSave = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+
+    const toSave = pendingSaveRef.current;
+    if (!toSave || !canPersistToServer()) return;
+
+    pendingSaveRef.current = null;
+
+    if (isRemoteDataSource()) {
+      try {
+        await saveAppStateClient(toSave, { keepalive: true });
+      } catch (err) {
+        console.error("Failed to save to server", err);
+        pendingSaveRef.current = toSave;
+      }
+      return;
+    }
+
+    saveState(toSave);
+  }, [canPersistToServer]);
 
   useLayoutEffect(() => {
     if (!authReady) return;
@@ -376,42 +410,73 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [session]);
 
-  const persistToBackend = useCallback((next: AppState) => {
-    if (isRemoteDataSource()) {
-      if (!sessionRef.current) return;
-      pendingSaveRef.current = next;
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        const toSave = pendingSaveRef.current;
-        saveTimerRef.current = null;
-        if (!toSave) return;
-        void saveAppStateClient(toSave).catch((err) => console.error("Failed to save to server", err));
-      }, 600);
-    } else {
+  const persistToBackend = useCallback(
+    (next: AppState) => {
+      if (!canPersistToServer()) return;
+
+      if (isRemoteDataSource()) {
+        pendingSaveRef.current = next;
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => {
+          saveTimerRef.current = null;
+          void flushPendingSave();
+        }, 600);
+        return;
+      }
+
       saveState(next);
-    }
-  }, []);
+    },
+    [canPersistToServer, flushPendingSave]
+  );
+
+  useEffect(() => {
+    if (!hydrated || !isRemoteDataSource() || !session) return;
+
+    void flushClientSyncQueue();
+
+    const onHide = () => {
+      void flushPendingSave();
+    };
+    const onOnline = () => {
+      void flushClientSyncQueue();
+      void flushPendingSave();
+    };
+
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") void flushPendingSave();
+    });
+
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [hydrated, session, flushPendingSave]);
 
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      void flushPendingSave();
     };
-  }, []);
+  }, [flushPendingSave]);
 
   /** Ensure POS menu catalog exists in memory and sync to DB/local once after load */
   useEffect(() => {
     if (!hydrated) return;
+    if (isRemoteDataSource() && !session) return;
     setState((prev) => {
       if (!needsMenuCatalogPersist(prev.inventory)) return prev;
       const next = { ...prev, inventory: ensureMenuCatalog(prev.inventory) };
       persistToBackend(next);
       return next;
     });
-  }, [hydrated, persistToBackend]);
+  }, [hydrated, session, persistToBackend]);
 
   /** Seed menu categories from catalog / inventory when missing */
   useEffect(() => {
     if (!hydrated) return;
+    if (isRemoteDataSource() && !session) return;
     setState((prev) => {
       if (!needsMenuCategoriesPersist(prev.settings.menuCategories, prev.inventory)) return prev;
       const next = {
@@ -424,7 +489,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       persistToBackend(next);
       return next;
     });
-  }, [hydrated, persistToBackend]);
+  }, [hydrated, session, persistToBackend]);
 
   const persist = useCallback(
     (next: AppState) => {
@@ -1444,6 +1509,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const refreshData = useCallback(() => {
     void (async () => {
       try {
+        await flushPendingSave();
         if (isRemoteDataSource()) {
           const remote = await loadAppStateClient();
           if (remote) setState(hydrateState(remote));
@@ -1454,7 +1520,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         /* keep current state */
       }
     })();
-  }, []);
+  }, [flushPendingSave]);
 
   useEffect(() => {
     if (!hydrated || isRemoteDataSource()) return;
@@ -1501,6 +1567,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteStaff,
       ensureDefaultAdmin,
       refreshData,
+      flushPendingSave,
       hydrated,
     }),
     [
@@ -1543,6 +1610,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteStaff,
       ensureDefaultAdmin,
       refreshData,
+      flushPendingSave,
     ]
   );
 

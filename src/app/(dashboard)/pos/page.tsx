@@ -59,6 +59,7 @@ export default function POSPage() {
     cancelPosOrder,
     sendPosOrderToKitchen,
     finalizePosOrder,
+    flushPendingSave,
   } = useStore();
   const tables = state.settings.tables;
 
@@ -82,6 +83,15 @@ export default function POSPage() {
 
   const skipPersistRef = useRef(false);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cartRef = useRef(cart);
+  const discountTypeRef = useRef(discountType);
+  const discountValueRef = useRef(discountValue);
+  const tableLabelRef = useRef("");
+  const activeOrderIdRef = useRef<string | null>(null);
+
+  cartRef.current = cart;
+  discountTypeRef.current = discountType;
+  discountValueRef.current = discountValue;
 
   const categories = useMemo(
     () => [...new Set(menuItems.map((m) => m.category))].filter(Boolean),
@@ -94,6 +104,9 @@ export default function POSPage() {
     "Walk-in";
 
   const tableLabel = tables.length > 0 ? selectedTable || tables[0]?.name || defaultTable : customTable;
+
+  tableLabelRef.current = tableLabel;
+  activeOrderIdRef.current = activeOrderId;
 
   const activeOrder = useMemo(
     () =>
@@ -173,9 +186,22 @@ export default function POSPage() {
       });
     }, 600);
     return () => {
-      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+        const orderId = activeOrderIdRef.current;
+        if (orderId && !skipPersistRef.current) {
+          updatePosOrder(orderId, {
+            items: cartToLines(cartRef.current),
+            discountType: discountTypeRef.current,
+            discountValue: parseFloat(discountValueRef.current) || 0,
+            table: tableLabelRef.current,
+          });
+        }
+      }
+      void flushPendingSave();
     };
-  }, [cart, discountType, discountValue, activeOrder?.id, tableLabel, updatePosOrder]);
+  }, [cart, discountType, discountValue, activeOrder?.id, tableLabel, updatePosOrder, flushPendingSave]);
 
   const openByTable = useMemo(() => {
     const map = new Map<string, number>();
